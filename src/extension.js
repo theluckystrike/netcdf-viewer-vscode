@@ -6,6 +6,9 @@ const path = require('path');
 const { Worker } = require('worker_threads');
 const { buildHtml } = require('./html.js');
 const { Session } = require('./core/session.mjs');
+const { createRatingPrompt } = require('./rate');
+
+let rating = { success() {} };
 
 const VIEW_TYPE = 'hdf5NetcdfExplorer.viewer';
 
@@ -32,7 +35,11 @@ class Provider {
     });
     const uri = document.uri;
     const fileName = path.basename(uri.fsPath || uri.path);
-    const post = m => { webview.postMessage(m); };
+    let counted = false; // one success per opened tab, for the rating prompt
+    const post = m => {
+      if (!counted && m && m.type === 'init' && !m.error) { counted = true; rating.success(); }
+      webview.postMessage(m);
+    };
     if (uri.scheme !== 'file') {
       webview.onDidReceiveMessage(m => { if (m && m.type === 'ready') post({ type: 'init', fileName, error: 'Only files on this computer can be opened (this file is on ' + uri.scheme + ').' }); });
       return;
@@ -58,6 +65,7 @@ class Provider {
 }
 
 function activate(context) {
+  rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.hdf5-netcdf-explorer', section: 'hdf5NetcdfExplorer', message: (n) => `HDF5 & NetCDF Explorer has opened ${n} files for you. A rating helps other people find it.` });
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, new Provider(context), { supportsMultipleEditorsPerDocument: true, webviewOptions: { retainContextWhenHidden: false } }),
     vscode.commands.registerCommand('hdf5NetcdfExplorer.openWith', async uri => {

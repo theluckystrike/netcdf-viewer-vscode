@@ -2,7 +2,7 @@
   "name": "hdf5-netcdf-explorer",
   "displayName": "HDF5 & NetCDF Explorer (H5 Viewer)",
   "description": "HDF5 and NetCDF viewer for .h5, .hdf5 and .nc files that lets you browse groups, attributes and CF metadata, page through values and plot 1D and 2D slices, all offline.",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -148,6 +148,11 @@
           "default": 20,
           "minimum": 2,
           "description": "Stop a read that takes longer than this. The reader restarts and VS Code stays responsive."
+        },
+        "hdf5NetcdfExplorer.askForRating": {
+          "type": "boolean",
+          "default": true,
+          "description": "Ask one time for a Marketplace rating after you have used HDF5 & NetCDF Explorer for a few days. You can answer \"Later\" or \"Don't ask again\". Nothing is sent anywhere."
         }
       }
     },

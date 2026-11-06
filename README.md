@@ -47,6 +47,7 @@ The format is detected from the first bytes of the file, not from the extension.
 | `hdf5NetcdfExplorer.maxReadValues` | 1000000 | Largest number of values one read may return |
 | `hdf5NetcdfExplorer.maxFileSizeMB` | 0 | Refuse files above this size, 0 means no limit |
 | `hdf5NetcdfExplorer.readTimeoutSeconds` | 20 | Stop a read that takes longer and restart the reader |
+| `hdf5NetcdfExplorer.askForRating` | true | Ask one time for a Marketplace rating, after 5 files and 2 days. Turn it off with `false` |
 
 ## Privacy and safety
 
