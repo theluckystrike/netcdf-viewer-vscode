@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.2.1 (2026-11-07)
+
+- The "More free viewers" list and the README list now show the 15 Zovo extensions on the Marketplace under their current names, and 12 that are coming soon.
+- Extensions for related files now come first, starting with GGUF, Safetensors & NPY Viewer (NumPy Viewer).
+
 ## 0.2.0 (2026-11-06)
 
 - A new "Export slice…" button saves the slice on screen as CSV or JSON. You pick the file in a save dialog, and its extension sets the format. The file holds every row and column of the two chosen dimensions, not only the page on screen. Coordinate values are the headers, CF decoding follows the checkbox, and fill values are empty cells. The JSON file also records the variable, units and the index and value of each dimension fixed by a slider. A message offers to open the new file.
