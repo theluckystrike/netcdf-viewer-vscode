@@ -1,0 +1,14 @@
+**
+!dist/extension.js
+!dist/worker.mjs
+!dist/webview.js
+!media/**
+!images/screenshot.png
+!images/table.png
+!icon.png
+!package.json
+!README.md
+!CHANGELOG.md
+!LICENSE
+!THIRD-PARTY-NOTICES.txt
+!walkthrough/**

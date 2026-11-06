@@ -1,0 +1,5 @@
+node_modules/
+dist/
+images/*.tmp
+scripts/screenshot/harness.html
+samples/tmp-*

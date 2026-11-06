@@ -1,0 +1,208 @@
+{
+  "name": "hdf5-netcdf-explorer",
+  "displayName": "HDF5 NetCDF Explorer",
+  "description": "Open HDF5 and NetCDF files (.h5, .hdf5, .nc): browse groups, attributes and CF metadata, page through values and plot 1D and 2D slices. Offline.",
+  "version": "0.1.0",
+  "publisher": "zovo",
+  "license": "MIT",
+  "icon": "icon.png",
+  "galleryBanner": {
+    "color": "#0B2A3C",
+    "theme": "dark"
+  },
+  "homepage": "https://github.com/theluckystrike/netcdf-viewer-vscode#readme",
+  "bugs": {
+    "url": "https://github.com/theluckystrike/netcdf-viewer-vscode/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/theluckystrike/netcdf-viewer-vscode"
+  },
+  "engines": {
+    "vscode": "^1.90.0",
+    "node": ">=18"
+  },
+  "categories": [
+    "Data Science",
+    "Visualization",
+    "Other"
+  ],
+  "keywords": [
+    "hdf5",
+    "h5",
+    "hdf",
+    "netcdf",
+    "nc",
+    "netcdf4",
+    "cdf",
+    "viewer",
+    "explorer",
+    "preview",
+    "scientific data",
+    "climate",
+    "weather",
+    "earth science",
+    "xarray",
+    "h5py",
+    "matlab",
+    "mat",
+    "dataset",
+    "attributes",
+    "array",
+    "heatmap",
+    "plot",
+    "slice",
+    "chunk",
+    "compression",
+    "metadata",
+    "physics",
+    "data science",
+    "offline"
+  ],
+  "main": "./dist/extension.js",
+  "activationEvents": [],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true
+    },
+    "virtualWorkspaces": false
+  },
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "hdf5NetcdfExplorer.viewer",
+        "displayName": "HDF5 NetCDF Explorer",
+        "selector": [
+          {
+            "filenamePattern": "*.h5"
+          },
+          {
+            "filenamePattern": "*.hdf5"
+          },
+          {
+            "filenamePattern": "*.he5"
+          },
+          {
+            "filenamePattern": "*.hdf"
+          },
+          {
+            "filenamePattern": "*.nc"
+          },
+          {
+            "filenamePattern": "*.nc4"
+          },
+          {
+            "filenamePattern": "*.netcdf"
+          },
+          {
+            "filenamePattern": "*.cdf"
+          },
+          {
+            "filenamePattern": "*.nxs"
+          },
+          {
+            "filenamePattern": "*.h5ad"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "hdf5NetcdfExplorer.openWith",
+        "title": "Open in HDF5 NetCDF Explorer",
+        "category": "HDF5 NetCDF"
+      },
+      {
+        "command": "hdf5NetcdfExplorer.openWalkthrough",
+        "title": "Get Started",
+        "category": "HDF5 NetCDF"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "hdf5NetcdfExplorer.openWith",
+          "when": "resourceExtname =~ /^\\.(h5|hdf5|he5|hdf|nc|nc4|netcdf|cdf|nxs|h5ad|mat)$/i",
+          "group": "navigation@20"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "HDF5 NetCDF Explorer",
+      "properties": {
+        "hdf5NetcdfExplorer.maxReadValues": {
+          "type": "number",
+          "default": 1000000,
+          "minimum": 10000,
+          "description": "Largest number of values one read may return. A table page or a plot that needs more is refused with a message. Plots of big arrays are sampled to stay under 512 x 512."
+        },
+        "hdf5NetcdfExplorer.maxFileSizeMB": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Refuse to open files larger than this many MB. 0 means no limit: files are read by slice, never loaded whole."
+        },
+        "hdf5NetcdfExplorer.readTimeoutSeconds": {
+          "type": "number",
+          "default": 20,
+          "minimum": 2,
+          "description": "Stop a read that takes longer than this. The reader restarts and VS Code stays responsive."
+        }
+      }
+    },
+    "walkthroughs": [
+      {
+        "id": "hdf5NetcdfExplorer.start",
+        "title": "Get started with HDF5 NetCDF Explorer",
+        "description": "Open a .nc or .h5 file, pick a variable, and look at its values and plots.",
+        "steps": [
+          {
+            "id": "open",
+            "title": "Open an HDF5 or NetCDF file",
+            "description": "Click a .nc, .nc4, .h5 or .hdf5 file in the Explorer. It opens in the viewer, not as binary text.\n[Open a file](command:hdf5NetcdfExplorer.openWith)",
+            "media": {
+              "markdown": "walkthrough/open.md"
+            },
+            "completionEvents": [
+              "onCommand:hdf5NetcdfExplorer.openWith"
+            ]
+          },
+          {
+            "id": "browse",
+            "title": "Pick a variable",
+            "description": "The tree on the left shows groups, variables and coordinates. Click one to see its type, shape, chunks, compression, units and attributes.",
+            "media": {
+              "image": "images/screenshot.png",
+              "altText": "A NetCDF temperature field drawn as a heatmap with its metadata above it."
+            }
+          },
+          {
+            "id": "slice",
+            "title": "Slice, page and plot",
+            "description": "Choose the row and column dimensions, move the sliders for the other ones, and switch between Table and Plot. Copy the same slice as xarray or h5py code.\n[Open settings](command:workbench.action.openSettings?%5B%22hdf5NetcdfExplorer%22%5D)",
+            "media": {
+              "markdown": "walkthrough/slice.md"
+            },
+            "completionEvents": [
+              "onCommand:workbench.action.openSettings"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "scripts": {
+    "build": "node scripts/build.js --production",
+    "test": "node --test test/*.test.mjs",
+    "samples": "python3 scripts/make-samples.py",
+    "package": "node scripts/build.js --production && npx -y @vscode/vsce package --no-dependencies -o dist/"
+  },
+  "dependencies": {
+    "h5wasm": "^0.10.3",
+    "netcdfjs": "^4.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
+  }
+}
