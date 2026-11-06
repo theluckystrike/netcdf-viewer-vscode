@@ -2,7 +2,7 @@
   "name": "hdf5-netcdf-explorer",
   "displayName": "HDF5 & NetCDF Explorer (H5 Viewer)",
   "description": "HDF5 and NetCDF viewer for .h5, .hdf5 and .nc files that lets you browse groups, attributes and CF metadata, page through values and plot 1D and 2D slices, all offline.",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -102,9 +102,55 @@
           },
           {
             "filenamePattern": "*.h5ad"
+          },
+          {
+            "filenamePattern": "*.jld2"
+          },
+          {
+            "filenamePattern": "*.loom"
+          },
+          {
+            "filenamePattern": "*.h5mu"
+          },
+          {
+            "filenamePattern": "*.hf5"
+          },
+          {
+            "filenamePattern": "*.h5oina"
+          },
+          {
+            "filenamePattern": "*.h5ebsd"
+          },
+          {
+            "filenamePattern": "*.edaxh5"
+          },
+          {
+            "filenamePattern": "*.oh5"
+          },
+          {
+            "filenamePattern": "*.dream3d"
+          },
+          {
+            "filenamePattern": "*.geoh5"
+          },
+          {
+            "filenamePattern": "*.nde"
+          },
+          {
+            "filenamePattern": "*.cxi"
           }
         ],
         "priority": "default"
+      },
+      {
+        "viewType": "hdf5NetcdfExplorer.anyFile",
+        "displayName": "HDF5 NetCDF Explorer (any file)",
+        "selector": [
+          {
+            "filenamePattern": "*"
+          }
+        ],
+        "priority": "option"
       }
     ],
     "commands": [
@@ -133,7 +179,7 @@
       "explorer/context": [
         {
           "command": "hdf5NetcdfExplorer.openWith",
-          "when": "resourceExtname =~ /^\\.(h5|hdf5|he5|hdf|nc|nc4|netcdf|cdf|nxs|h5ad|mat)$/i",
+          "when": "resourceExtname =~ /^\\.(h5|hdf5|he5|hdf|nc|nc4|netcdf|cdf|nxs|h5ad|mat|jld2|loom|h5mu|hf5|h5oina|h5ebsd|edaxh5|oh5|dream3d|geoh5|nde|cxi)$/i",
           "group": "navigation@20"
         }
       ]
@@ -151,7 +197,7 @@
           "type": "number",
           "default": 0,
           "minimum": 0,
-          "description": "Refuse to open files larger than this many MB. 0 means no limit: files are read by slice, never loaded whole."
+          "description": "Refuse to open files larger than this many MB. 0 means no limit, because files are read by slice and never loaded whole."
         },
         "hdf5NetcdfExplorer.readTimeoutSeconds": {
           "type": "number",

@@ -15,19 +15,29 @@ button.secondary { background: var(--vscode-button-secondaryBackground); color: 
 button:disabled { opacity: .45; cursor: default; }
 button:focus-visible, .node:focus-visible { outline: 1px solid var(--vscode-focusBorder); }
 .main { display: flex; height: calc(100vh - 40px); }
-#tree { width: 300px; min-width: 200px; overflow: auto; border-right: 1px solid var(--vscode-panel-border, #444); padding: 4px 0; resize: horizontal; }
+#tree { width: 300px; max-width: 45%; min-width: 140px; overflow: auto; border-right: 1px solid var(--vscode-panel-border, #444); padding: 4px 0; resize: horizontal; }
 #tree ul { list-style: none; margin: 0; padding: 0; }
 .node { padding: 2px 8px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .node:hover { background: var(--vscode-list-hoverBackground); }
 .node.sel { background: var(--vscode-list-activeSelectionBackground, #04395e); color: var(--vscode-list-activeSelectionForeground, inherit); }
 .node .icon, .node .twisty { display: inline-block; width: 16px; opacity: .8; }
 .node .muted { font-size: 11px; }
-#detail { flex: 1; overflow: auto; padding: 8px 16px 24px; }
+#detail { flex: 1; min-width: 0; overflow: auto; padding: 8px 16px 24px; }
+/* Narrow editors (split view, small laptop): the tree goes above the details instead of beside them. */
+@media (max-width: 560px) {
+  header { flex-wrap: wrap; }
+  input[type=search] { width: 100%; }
+  .main { flex-direction: column; height: auto; }
+  #tree { width: auto; max-width: none; max-height: 35vh; border-right: none; border-bottom: 1px solid var(--vscode-panel-border, #444); resize: none; }
+  #detail { overflow: visible; }
+}
 h2 { font-size: 16px; margin: 6px 0 8px; font-weight: 600; }
 h3 { font-size: 13px; margin: 16px 0 6px; font-weight: 600; }
 .dhead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .dhead h2 { flex: 1; }
-.actions { display: flex; gap: 6px; }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.export { display: inline-flex; gap: 6px; align-items: center; }
+.export-note { font-size: 12px; max-width: 46ch; overflow-wrap: anywhere; }
 table.kv { border-collapse: collapse; margin: 4px 0 8px; }
 table.kv th { text-align: left; font-weight: normal; opacity: .7; padding: 1px 14px 1px 0; vertical-align: top; white-space: nowrap; }
 table.kv td { padding: 1px 0; }

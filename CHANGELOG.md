@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.2.0 (2026-11-06)
+
+- A new "Export slice…" button saves the slice on screen as CSV or JSON. You pick the file in a save dialog, and its extension sets the format. The file holds every row and column of the two chosen dimensions, not only the page on screen. Coordinate values are the headers, CF decoding follows the checkbox, and fill values are empty cells. The JSON file also records the variable, units and the index and value of each dimension fixed by a slider. A message offers to open the new file.
+- HDF5 files with other names open too. `.jld2` (Julia), `.loom`, `.h5mu`, `.hf5`, `.h5oina`, `.h5ebsd`, `.edaxh5`, `.oh5`, `.dream3d`, `.geoh5`, `.nde` and `.cxi` open in the viewer by default. For MATLAB 7.3 `.mat` files and any other name, "HDF5 NetCDF Explorer (any file)" is listed in "Reopen Editor With…", and the Explorer menu item covers `.mat` and the new extensions.
+- "HDF5 NetCDF: Open in HDF5 NetCDF Explorer" from the Command Palette now opens the file in the active tab, even when VS Code shows it as binary.
+- An older MATLAB v5 `.mat` file gets a clear message that tells you to save it with `-v7.3`.
+- The view also reloads when a script deletes the file and writes it again.
+- In a narrow editor (under about 560 px, for example a split view), the tree now sits above the details. Before, the details column could shrink to a few letters.
+
 ## 0.1.4 (2026-11-06)
 
 - The Marketplace page now starts with a screenshot of a real VS Code window with a NetCDF heatmap, and a short GIF of picking a variable, moving the time slider and opening the Table tab. Both were made from generated sample files. The images load from the GitHub repo and are not packed into the extension, so the download size stays the same.
@@ -24,4 +33,4 @@
 
 ## 0.1.0 (2026-11-06)
 
-- First release: HDF5, NetCDF-4 and NetCDF-3 viewer with tree, attributes, CF decoding, paged table, line plot and heatmap.
+- First release, an HDF5, NetCDF-4 and NetCDF-3 viewer with tree, attributes, CF decoding, paged table, line plot and heatmap.

@@ -42,6 +42,19 @@ export function validateRequest(msg, limits = DEFAULT_LIMITS) {
         }
         return { ok: true, req: { type: 'read', reqId, path: msg.path, view, decode: msg.decode !== false, purpose: msg.purpose === 'plot' ? 'plot' : 'table' } };
       }
+      case 'export': {
+        // Export the whole slice that is on screen. Only the axes and the fixed indices come from the webview;
+        // the host reads the shape itself, and the user picks the file in a save dialog.
+        const reqId = int(msg.reqId, 0, 2 ** 31, undefined);
+        if (reqId === undefined) throw new Error('missing reqId');
+        if (!isStr(msg.path, limits.maxPathLength) || msg.path[0] !== '/') throw new Error('bad path');
+        const v = msg.view || {};
+        const index = Array.isArray(v.index) ? v.index : [];
+        if (index.length > limits.maxDims || !index.every(x => Number.isInteger(x) && x >= 0 && x <= Number.MAX_SAFE_INTEGER)) throw new Error('bad index');
+        const view = { rowAxis: int(v.rowAxis, 0, limits.maxDims - 1, 0), colAxis: int(v.colAxis, -1, limits.maxDims - 1, -1), index };
+        if (view.colAxis === view.rowAxis) throw new Error('bad axes');
+        return { ok: true, req: { type: 'export', reqId, path: msg.path, view, decode: msg.decode !== false } };
+      }
       default: throw new Error('unknown type');
     }
   } catch (e) {

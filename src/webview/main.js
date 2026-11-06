@@ -201,7 +201,8 @@ function showDataset(info, detail) {
     el('h2', null, el('span', { class: 'mono', text: info.name }), cf.long_name ? el('span', { class: 'muted', text: '  ' + cf.long_name }) : null),
     el('div', { class: 'actions' },
       copyBtn('Copy path', () => info.path),
-      copyBtn(lib === 'xarray' ? 'Copy xarray code' : 'Copy h5py code', () => pythonSnippet({ fileName: state.init.fileName, path: info.path, lib, shape: info.shape, dims: info.dims, hs: state.lastHs }))));
+      copyBtn(lib === 'xarray' ? 'Copy xarray code' : 'Copy h5py code', () => pythonSnippet({ fileName: state.init.fileName, path: info.path, lib, shape: info.shape, dims: info.dims, hs: state.lastHs })),
+      exportButton(info)));
   const meta = kv([
     ['Path', info.path], ['Type', info.dtype], ['Shape', shapeText(info.shape, info.dims)],
     ['Units', cf.units], ['Standard name', cf.standard_name], ['Calendar', cf.time ? cf.calendar || 'standard' : undefined],
@@ -221,6 +222,24 @@ function showDataset(info, detail) {
   buildControls(info, controls, () => drawTab(info, body, statsBar));
   drawTab(info, body, statsBar);
 }
+
+// Export slice: the host reads every row and column of the two chosen dimensions (the sliders fix the rest)
+// and writes CSV or JSON to the file picked in the save dialog.
+function exportButton(info) {
+  const note = el('span', { class: 'muted export-note', role: 'status' });
+  const btn = el('button', { class: 'secondary', title: 'Save every value of this slice as CSV or JSON', onclick: async () => {
+    const v = state.view || { rowAxis: 0, colAxis: -1, index: [] };
+    btn.disabled = true; note.className = 'muted export-note'; note.textContent = 'Exporting…';
+    try {
+      const r = await request('export', info.path, { view: { rowAxis: v.rowAxis, colAxis: v.colAxis, index: v.index.slice() }, decode: state.decode });
+      note.textContent = r.cancelled ? '' : `Saved ${exportedName(r.file)} (${r.rows} × ${r.cols} values)`;
+    } catch (e) {
+      note.className = 'err export-note'; note.textContent = e.message;
+    } finally { btn.disabled = false; }
+  } }, 'Export slice…');
+  return el('span', { class: 'export' }, btn, note);
+}
+const exportedName = f => String(f || '').split(/[\\/]/).pop();
 
 function buildControls(info, box, redraw) {
   const nd = info.shape.length, v = state.view;
