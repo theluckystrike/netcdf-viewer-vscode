@@ -12,4 +12,5 @@
 !LICENSE
 !THIRD-PARTY-NOTICES.txt
 !walkthrough/**
-images/**
+images/vscode-*
+images/demo-*
