@@ -55,3 +55,8 @@ test('webview and core never build HTML from data or run code', () => {
     assert.doesNotMatch(src, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|child_process/, f);
   }
 });
+
+test('replaceChildren never gets a null child (it would print "null" in the overview)', () => {
+  const src = fs.readFileSync(new URL('../src/webview/main.js', import.meta.url), 'utf8');
+  for (const m of src.matchAll(/replaceChildren\(([\s\S]*?)\);\n/g)) assert.doesNotMatch(m[1], /:\s*null\s*[,)]/, m[0].slice(0, 120));
+});

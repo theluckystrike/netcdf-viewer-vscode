@@ -152,7 +152,7 @@ function showGroup(info, detail) {
   detail.replaceChildren(
     el('h2', { text: info.path === '/' ? (state.init.fileName) : info.name }),
     kv([['Format', info.format], ['Path', info.path], ['Items', info.children]]),
-    info.dimensions ? el('div', null, el('h3', { text: 'Dimensions' }), kv(info.dimensions.map(d => [d.name, d.size + (d.unlimited ? ' (unlimited)' : '')]))) : null,
+    info.dimensions ? el('div', null, el('h3', { text: 'Dimensions' }), kv(info.dimensions.map(d => [d.name, d.size + (d.unlimited ? ' (unlimited)' : '')]))) : '',
     el('h3', { text: info.path === '/' ? 'Global attributes' : 'Attributes' }), attrTable(info.attrs, false), kids);
   const items = (n && n.items) || [];
   const vars = items.filter(i => i.kind === 'dataset');

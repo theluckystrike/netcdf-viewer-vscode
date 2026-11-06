@@ -1,8 +1,10 @@
 # HDF5 & NetCDF Explorer (H5 Viewer)
 
-Open `.nc`, `.nc4`, `.h5` and `.hdf5` files in VS Code and see the variables, their CF metadata, the values and a plot, without writing a line of Python.
+For climate and lab scientists who keep data in `.nc` or `.h5` files, this extension shows the variables, their CF metadata, the values and a plot inside VS Code, without a line of Python.
 
-![A NetCDF-4 temperature field at one time step, drawn as a heatmap, with units, packing, chunks and compression above it](images/screenshot.png)
+![An ERA5-style NetCDF-4 file in VS Code. The t2m variable is selected, with units, packing, chunks and compression, a time slider and a heatmap of 2 metre temperature](https://raw.githubusercontent.com/theluckystrike/netcdf-viewer-vscode/main/images/vscode-netcdf-t2m.png)
+
+*A real VS Code 1.142 window running this extension on [`samples/era5-t2m-sample.nc`](samples/era5-t2m-sample.nc), a 1.3 MB NetCDF-4 file made by `scripts/make-samples.py`.*
 
 ![VS Code engine](https://img.shields.io/badge/VS%20Code-%5E1.90-0B2A3C) ![License MIT](https://img.shields.io/badge/license-MIT-0B2A3C) ![Works offline](https://img.shields.io/badge/network-none-0B2A3C)
 
@@ -14,6 +16,10 @@ Open `.nc`, `.nc4`, `.h5` and `.hdf5` files in VS Code and see the variables, th
 
 1. Install the extension.
 2. Click a `.nc` or `.h5` file in the Explorer. Pick a variable on the left.
+
+![A click on the .nc file shows the file overview. A click on t2m draws a heatmap, the time slider steps through 3 time steps, and the Table tab shows the values with latitude and longitude headers](https://raw.githubusercontent.com/theluckystrike/netcdf-viewer-vscode/main/images/demo-netcdf.gif)
+
+*Recorded in the same window. The white arrow is drawn in to show where each click lands.*
 
 ## What you can do
 
