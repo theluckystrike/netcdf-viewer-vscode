@@ -7,6 +7,7 @@ const { Worker } = require('worker_threads');
 const { buildHtml } = require('./html.js');
 const { Session } = require('./core/session.mjs');
 const { createRatingPrompt } = require('./rate');
+const { registerSupport, commandUris, showLinks } = require('./support');
 
 let rating = { success() {} };
 
@@ -27,11 +28,13 @@ class Provider {
   resolveCustomEditor(document, panel) {
     const ext = this.context.extensionUri;
     const webview = panel.webview;
-    webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(ext, 'dist'), vscode.Uri.joinPath(ext, 'media')] };
+    // Command links are limited to the two support commands and the settings page (footer "Hide" link).
+    webview.options = { enableScripts: true, localResourceRoots: [vscode.Uri.joinPath(ext, 'dist'), vscode.Uri.joinPath(ext, 'media')], enableCommandUris: commandUris('hdf5NetcdfExplorer') };
     webview.html = buildHtml({
       cspSource: webview.cspSource,
       scriptUri: webview.asWebviewUri(vscode.Uri.joinPath(ext, 'dist', 'webview.js')),
       styleUri: webview.asWebviewUri(vscode.Uri.joinPath(ext, 'media', 'webview.css')),
+      showSupportLinks: showLinks(vscode, 'hdf5NetcdfExplorer'),
     });
     const uri = document.uri;
     const fileName = path.basename(uri.fsPath || uri.path);
@@ -66,6 +69,7 @@ class Provider {
 
 function activate(context) {
   rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.hdf5-netcdf-explorer', section: 'hdf5NetcdfExplorer', message: (n) => `HDF5 & NetCDF Explorer has opened ${n} files for you. A rating helps other people find it.` });
+  registerSupport({ vscode, context, prefix: 'hdf5NetcdfExplorer', selfId: 'zovo.hdf5-netcdf-explorer' });
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, new Provider(context), { supportsMultipleEditorsPerDocument: true, webviewOptions: { retainContextWhenHidden: false } }),
     vscode.commands.registerCommand('hdf5NetcdfExplorer.openWith', async uri => {
