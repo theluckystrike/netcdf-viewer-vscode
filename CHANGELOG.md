@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 (2026-11-07)
+
+- New name in the Marketplace: NetCDF Viewer & HDF5 Viewer (NC, H5). The extension ID, settings and commands stay the same.
+- Plot controls above the heatmap: 8 colour maps, Reverse, a colour range (2-98 percentile as before, min to max, symmetric around 0, from the variable's range attributes, or custom numbers) and a log scale. The new setting `hdf5NetcdfExplorer.colormap` sets the colour map a heatmap starts with.
+- "Save PNG" saves the heatmap, a line plot or a point series as a PNG file next to the data file. The picture has a title with the variable, units and slider positions, plus axis labels and the colour bar.
+- Click a heatmap cell on a variable with 3 or more dimensions to plot that point along time or another dimension, with decoded dates. "Copy as CSV" copies the series.
+
 ## 0.2.3 (2026-11-07)
 
 - "More free viewers" now starts with the Zovo extensions most related to this one. Picking one opens its Marketplace page, where you choose to install it.
