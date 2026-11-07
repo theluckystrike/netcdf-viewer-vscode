@@ -2,7 +2,7 @@
   "name": "hdf5-netcdf-explorer",
   "displayName": "HDF5 & NetCDF Explorer (H5 Viewer)",
   "description": "HDF5 and NetCDF viewer for .h5, .hdf5 and .nc files that lets you browse groups, attributes and CF metadata, page through values and plot 1D and 2D slices, all offline.",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -28,6 +28,8 @@
     "Other"
   ],
   "keywords": [
+    "nc viewer",
+    "hdf viewer",
     "hdf5",
     "netcdf",
     "h5 viewer",
@@ -55,8 +57,6 @@
     "plot",
     "slice",
     "data science",
-    "explorer",
-    "viewer",
     "offline"
   ],
   "main": "./dist/extension.js",
