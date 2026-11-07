@@ -1,12 +1,15 @@
 // One session per open editor: validates webview messages, relays them to the worker thread,
 // enforces a timeout per read, and restarts the worker when a read hangs.
-import { validateRequest, DEFAULT_LIMITS } from './protocol.mjs';
+import { validateRequest, DEFAULT_LIMITS, decodePngDataUrl } from './protocol.mjs';
 import { toCsv, toJson, exportFileName } from './export.mjs';
 
 export class Session {
-  /** chooseExportFile({ defaultName }) -> { path, format: 'csv' | 'json' } or null; writeExport(path, text) -> Promise. */
-  constructor({ createWorker, post, copy, limits = DEFAULT_LIMITS, timeoutMs = 20000, fileName, chooseExportFile, writeExport }) {
-    Object.assign(this, { createWorker, post, copy, limits, timeoutMs, fileName, chooseExportFile, writeExport });
+  /**
+   * chooseExportFile({ defaultName }) -> { path, format: 'csv' | 'json' } or null; writeExport(path, text) -> Promise.
+   * choosePngFile({ defaultName }) -> { path } or null; writePng(path, bytes) -> Promise. ui: settings for the webview (colormap).
+   */
+  constructor({ createWorker, post, copy, limits = DEFAULT_LIMITS, timeoutMs = 20000, fileName, chooseExportFile, writeExport, choosePngFile, writePng, ui }) {
+    Object.assign(this, { createWorker, post, copy, limits, timeoutMs, fileName, chooseExportFile, writeExport, choosePngFile, writePng, ui });
     this.seq = 1; this.calls = new Map(); this.worker = null; this.disposed = false; this.opened = null;
   }
 
@@ -46,7 +49,7 @@ export class Session {
   async init() {
     try {
       const o = await (this.opened || this.spawn());
-      return { type: 'init', fileName: this.fileName, format: o.format, label: o.label, size: o.size };
+      return { type: 'init', fileName: this.fileName, format: o.format, label: o.label, size: o.size, ...(this.ui ? { ui: this.ui } : {}) };
     } catch (e) {
       return { type: 'init', fileName: this.fileName, error: e.message };
     }
@@ -62,9 +65,14 @@ export class Session {
     const r = v.req;
     if (r.type === 'ready') { this.post(await this.init()); return; }
     if (r.type === 'copy') { if (this.copy) await this.copy(r.text); return; }
+    if (r.type === 'savePng') {
+      try { this.post({ type: 'result', reqId: r.reqId, ok: true, data: await this.savePng(r) }); } catch (e) { this.post({ type: 'result', reqId: r.reqId, ok: false, error: e.message }); }
+      return;
+    }
     try {
       if (!this.worker) await this.spawn();
       if (r.type === 'export') { this.post({ type: 'result', reqId: r.reqId, ok: true, data: await this.exportSlice(r) }); return; }
+      if (r.type === 'series') { this.post({ type: 'result', reqId: r.reqId, ok: true, data: await this.call('series', { path: r.path, axis: r.axis, index: r.index, decode: r.decode }) }); return; }
       const data = await this.call(r.type, r.type === 'read' ? { path: r.path, view: r.view, decode: r.decode } : { path: r.path });
       this.post({ type: 'result', reqId: r.reqId, ok: true, data });
     } catch (e) {
@@ -115,6 +123,17 @@ export class Session {
     const text = pick.format === 'json' ? toJson(slice) : toCsv(slice);
     await this.writeExport(pick.path, text);
     return { file: pick.path, format: pick.format, rows: data.rows, cols: data.cols, bytes: Buffer.byteLength(text) };
+  }
+
+  /** Checks the picture is a PNG, asks where to save it (next to the source file) and writes it. */
+  async savePng(r) {
+    if (!this.choosePngFile || !this.writePng) throw new Error('Save PNG is not available here.');
+    let bytes;
+    try { bytes = decodePngDataUrl(r.dataUrl); } catch (e) { throw new Error('The picture could not be saved: ' + e.message + '.'); }
+    const pick = await this.choosePngFile({ defaultName: r.name });
+    if (!pick) return { cancelled: true };
+    await this.writePng(pick.path, bytes);
+    return { file: pick.path, bytes: bytes.length };
   }
 
   async reload() {

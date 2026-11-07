@@ -66,3 +66,10 @@ tr.click { cursor: pointer; } tr.click:hover td { background: var(--vscode-list-
 .hover { min-height: 18px; font-size: 12px; }
 canvas.plot { display: block; }
 .fatal { padding: 24px; }
+[hidden] { display: none !important; }
+.plotbar { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; margin: 2px 0 8px; }
+.note { font-size: 12px; max-width: 60ch; overflow-wrap: anywhere; }
+canvas#heatmap-canvas { cursor: crosshair; }
+.series { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--vscode-panel-border, #444); }
+.serieshead { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-bottom: 6px; }
+.seriestitle { font-weight: 600; }

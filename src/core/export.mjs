@@ -121,3 +121,20 @@ export function toJson(slice) {
   if (data.times) out.times = pick(data.times);
   return JSON.stringify(out, null, 1) + '\n';
 }
+
+/**
+ * "Copy as CSV" of a series: two columns, the coordinate (decoded time or value, or the index) and the value.
+ * series = readSeries() result. Text from the file gets the spreadsheet formula guard.
+ */
+export function seriesCsv(series) {
+  const units = series.units;
+  const valueName = units ? `${series.name} (${units})` : series.name;
+  const lines = [[label(series.dim), label(valueName)].join(',')];
+  for (let i = 0; i < series.values.length; i++) {
+    const x = coordAt(series.coord, i);
+    const v = series.times && series.times[i] != null ? series.times[i] : series.values[i];
+    const text = typeof v === 'string' && !(series.times && series.times[i] != null) && !SPECIAL.has(v);
+    lines.push([label(series.coord ? x : series.indices[i]), csvField(v, text)].join(','));
+  }
+  return lines.join('\n') + '\n';
+}

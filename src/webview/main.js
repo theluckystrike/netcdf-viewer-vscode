@@ -1,6 +1,8 @@
 // Webview UI. All file content goes into the DOM as text nodes (textContent), never parsed as HTML.
-import { fmtNum, fmtBytes, shapeText, pythonSnippet } from './util.js';
-import { linePlot, heatmap } from './plot.js';
+import { fmtNum, fmtBytes, shapeText, pythonSnippet, COLORMAPS, isColormap, colormap, resolveRange, attrRange } from './util.js';
+import { linePlot, heatmap, heatmapPng, linePng } from './plot.js';
+import { seriesCsv } from '../core/export.mjs';
+import { seriesTitle } from '../core/series.mjs';
 
 const vscode = acquireVsCodeApi();
 const app = document.getElementById('app');
@@ -29,12 +31,29 @@ function el(tag, attrs, ...kids) {
   return e;
 }
 
-const state = { init: null, selected: null, info: null, view: null, tab: 'table', decode: true, coordCache: new Map(), tree: new Map(), filter: '' };
+const state = { init: null, selected: null, info: null, view: null, tab: 'table', decode: true, coordCache: new Map(), tree: new Map(), filter: '', plot: null, seriesAt: null, seriesAxis: null, closeSeries: null };
+
+// Plot choices (colour map, reverse, range mode, custom ranges per variable, log) live in the webview state,
+// so they come back when this file's tab is shown again. The colour map starts from the setting.
+const RANGE_MODES = [['minmax', 'Min to max'], ['p2_98', '2-98 percentile'], ['symmetric', 'Symmetric around 0'], ['attrs', 'From attributes'], ['custom', 'Custom']];
+function loadPlotPrefs(ui) {
+  const saved = (vscode.getState() || {}).plot || {};
+  const dflt = ui && isColormap(ui.colormap) ? ui.colormap : 'viridis';
+  state.plot = {
+    cmap: isColormap(saved.cmap) ? saved.cmap : dflt,
+    reverse: saved.reverse === true,
+    range: RANGE_MODES.some(m => m[0] === saved.range) ? saved.range : 'p2_98',
+    log: saved.log === true,
+    custom: saved.custom && typeof saved.custom === 'object' ? saved.custom : {},
+  };
+}
+const savePlotPrefs = () => vscode.setState({ ...(vscode.getState() || {}), plot: state.plot });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.closeSeries) state.closeSeries(); });
 
 window.addEventListener('message', ev => {
   const m = ev.data;
   if (!m || typeof m !== 'object') return;
-  if (m.type === 'init') { state.init = m; render(); return; }
+  if (m.type === 'init') { state.init = m; loadPlotPrefs(m.ui); render(); return; }
   if (m.type === 'reload') { state.coordCache.clear(); state.tree.clear(); render(); return; }
   if (m.type === 'result') {
     const p = pending.get(m.reqId); if (!p) return;
@@ -300,34 +319,7 @@ async function drawTab(info, body, bar) {
   body.replaceChildren(el('p', { class: 'muted', text: 'Reading…' }));
   const t0 = performance.now();
   try {
-    if (state.tab === 'plot') {
-      const rows = info.shape[v.rowAxis], cols = v.colAxis >= 0 ? info.shape[v.colAxis] : 1;
-      const view = nd === 1
-        ? { ...v, rowStart: 0, rowCount: rows, rowStep: Math.ceil(rows / LINE_MAX), colAxis: -1 }
-        : { ...v, rowStart: 0, colStart: 0, rowCount: rows, colCount: cols, rowStep: Math.ceil(rows / PLOT_MAX), colStep: Math.ceil(cols / PLOT_MAX) };
-      const r = await request('read', info.path, { view, decode: state.decode, purpose: 'plot' });
-      if (state.drawToken !== token) return;
-      state.lastHs = { ...r, single: info.shape.map((_, d) => d !== v.rowAxis && d !== v.colAxis) };
-      const canvas = el('canvas', { class: 'plot', role: 'img', 'aria-label': `Plot of ${info.name}` });
-      const hover = el('div', { class: 'hover mono' });
-      body.replaceChildren(canvas, hover);
-      const width = Math.max(320, Math.min(1000, body.clientWidth - 8));
-      if (nd === 1) {
-        const c = await coordValues(info.coords && info.coords[0], rows);
-        const idx = r.values.map((_, i) => r.start[0] + i * r.step[0]);
-        const xs = c ? idx.map(i => (c.times ? i : c.values[i])) : idx;
-        const ys = r.values.map(x => x[0]);
-        const p = linePlot(canvas, xs, ys, { width, xLabel: info.dims[0] });
-        if (p) canvas.addEventListener('mousemove', e => { const i = p.hit(e.offsetX); if (i === null) return; hover.textContent = `${info.dims[0]}=${coordLabel(c, idx[i])}  value=${fmtNum(ys[i])}`; });
-      } else {
-        const p = heatmap(canvas, r.values, { width });
-        const [rc, cc] = await Promise.all([coordValues(info.coords && info.coords[v.rowAxis], rows), coordValues(info.coords && info.coords[v.colAxis], cols)]);
-        if (p) canvas.addEventListener('mousemove', e => { const h = p.hit(e.offsetX, e.offsetY); if (!h) return; const ri = r.start[v.rowAxis] + h.r * r.step[v.rowAxis], ci = r.start[v.colAxis] + h.c * r.step[v.colAxis]; hover.textContent = `${info.dims[v.rowAxis]}=${coordLabel(rc, ri)}  ${info.dims[v.colAxis]}=${coordLabel(cc, ci)}  value=${fmtNum(r.values[h.r][h.c])}`; });
-      }
-      const sampled = r.step.some(s => s > 1) ? `sampled every ${r.step.filter(s => s > 1).join('×')}` : 'all values';
-      showStats(bar, r, `${sampled}, ${Math.round(performance.now() - t0)} ms`);
-      return;
-    }
+    if (state.tab === 'plot') { await drawPlot(info, body, bar, token, t0); return; }
     const view = { ...v, rowCount: PAGE_ROWS, colCount: v.colAxis >= 0 ? PAGE_COLS : 1 };
     const r = await request('read', info.path, { view, decode: state.decode, purpose: 'table' });
     if (state.drawToken !== token) return;
@@ -366,5 +358,194 @@ async function drawTab(info, body, bar) {
   }
 }
 const cf = info => (info.cf && info.cf.units ? `${info.name} (${info.cf.units})` : info.name);
+const safeName = s => String(s).replace(/[^A-Za-z0-9_.-]+/g, '_');
+
+/** Asks the host to save a picture; the note shows the result. */
+async function savePng(dataUrl, name, note) {
+  note.className = 'muted note'; note.textContent = 'Saving…';
+  try {
+    const r = await request('savePng', undefined, { dataUrl, name });
+    note.textContent = r.cancelled ? '' : `Saved ${exportedName(r.file)}`;
+  } catch (e) { note.className = 'err note'; note.textContent = e.message; }
+}
+
+function pngOf(draw, name, note) {
+  let url;
+  try { url = draw(); } catch (e) { note.className = 'err note'; note.textContent = 'Could not draw the picture: ' + e.message; return; }
+  return savePng(url, name, note);
+}
+
+/** "time = 2024-12-04 06:00" for every dimension fixed by a slider. */
+async function fixedText(info, v) {
+  const parts = [], nameBits = [];
+  for (let d = 0; d < info.shape.length; d++) {
+    if (d === v.rowAxis || d === v.colAxis) continue;
+    const c = await coordValues(info.coords && info.coords[d], info.shape[d]);
+    parts.push(`${info.dims[d]} = ${coordLabel(c, v.index[d])}`);
+    nameBits.push(`${info.dims[d]}${v.index[d]}`);
+  }
+  return { text: parts.join(', '), name: nameBits.join('-') };
+}
+
+async function drawPlot(info, body, bar, token, t0) {
+  const nd = info.shape.length, v = state.view;
+  const rows = info.shape[v.rowAxis], cols = v.colAxis >= 0 ? info.shape[v.colAxis] : 1;
+  const view = nd === 1
+    ? { ...v, rowStart: 0, rowCount: rows, rowStep: Math.ceil(rows / LINE_MAX), colAxis: -1 }
+    : { ...v, rowStart: 0, colStart: 0, rowCount: rows, colCount: cols, rowStep: Math.ceil(rows / PLOT_MAX), colStep: Math.ceil(cols / PLOT_MAX) };
+  const r = await request('read', info.path, { view, decode: state.decode, purpose: 'plot' });
+  if (state.drawToken !== token) return;
+  state.lastHs = { ...r, single: info.shape.map((_, d) => d !== v.rowAxis && d !== v.colAxis) };
+  const canvas = el('canvas', { class: 'plot', id: nd === 1 ? 'line-canvas' : 'heatmap-canvas', role: 'img', 'aria-label': `Plot of ${info.name}` });
+  const hover = el('div', { class: 'hover mono', id: 'plot-readout', role: 'status' });
+  const note = el('span', { class: 'muted note', id: 'plot-note', role: 'status' });
+  const tools = el('div', { class: 'plotbar', id: 'plot-controls' });
+  const width = Math.max(320, Math.min(1000, body.clientWidth - 8));
+  const units = info.cf && info.cf.units;
+  const sampled = r.step.some(s => s > 1) ? `sampled every ${r.step.filter(s => s > 1).join('×')}` : 'all values';
+  state.closeSeries = null;
+  if (nd === 1) {
+    body.replaceChildren(tools, canvas, hover);
+    const c = await coordValues(info.coords && info.coords[0], rows);
+    if (state.drawToken !== token) return;
+    const idx = r.values.map((_, i) => r.start[0] + i * r.step[0]);
+    const xs = c ? idx.map(i => (c.times ? (c.times[i] != null ? c.times[i] : i) : c.values[i])) : idx;
+    const ys = r.values.map(x => x[0]);
+    const p = linePlot(canvas, xs, ys, { width, xLabel: info.dims[0], yLabel: units });
+    if (p) canvas.addEventListener('mousemove', e => { const i = p.hit(e.offsetX); if (i === null) return; hover.textContent = `${info.dims[0]}=${coordLabel(c, idx[i])}  value=${fmtNum(ys[i])}`; });
+    tools.append(el('button', { class: 'secondary', id: 'plot-save-png', title: 'Save this plot as a PNG picture', onclick: () => pngOf(() => linePng(xs, ys, { title: cf(info), xLabel: info.dims[0], yLabel: units }), `${safeName(info.name)}.png`, note) }, 'Save PNG'), note);
+    showStats(bar, r, `${sampled}, ${Math.round(performance.now() - t0)} ms`);
+    return;
+  }
+  const seriesBox = el('div', { class: 'series', id: 'series', hidden: true });
+  body.replaceChildren(tools, canvas, hover, seriesBox);
+  const [rc, cc] = await Promise.all([coordValues(info.coords && info.coords[v.rowAxis], rows), coordValues(info.coords && info.coords[v.colAxis], cols)]);
+  if (state.drawToken !== token) return;
+  const flat = []; for (const row of r.values) for (const x of row) flat.push(x);
+  const P = state.plot;
+  const fromAttrs = attrRange(info.attrs, { decoded: r.decoded });
+  // Controls: colour map, reverse, range mode (+ custom min/max), log scale, Save PNG.
+  const cmapSel = el('select', { id: 'plot-cmap', 'aria-label': 'Colour map' });
+  for (const [k, label] of COLORMAPS) cmapSel.append(el('option', { value: k, selected: P.cmap === k, text: label }));
+  const rev = el('input', { type: 'checkbox', id: 'plot-reverse', checked: P.reverse });
+  const rangeSel = el('select', { id: 'plot-range', 'aria-label': 'Colour range' });
+  const mode = () => (P.range === 'attrs' && !fromAttrs ? 'p2_98' : P.range);
+  for (const [k, label] of RANGE_MODES) {
+    if (k === 'attrs' && !fromAttrs) continue;
+    rangeSel.append(el('option', { value: k, selected: mode() === k, text: k === 'attrs' ? `${label} (${fromAttrs.source})` : label }));
+  }
+  const custom = () => P.custom[info.path] || {};
+  const minIn = el('input', { type: 'number', step: 'any', id: 'plot-min', 'aria-label': 'Colour range min', value: custom().min ?? '' });
+  const maxIn = el('input', { type: 'number', step: 'any', id: 'plot-max', 'aria-label': 'Colour range max', value: custom().max ?? '' });
+  const customBox = el('span', { class: 'ctl', id: 'plot-custom' }, 'min ', minIn, ' max ', maxIn);
+  const logBox = el('input', { type: 'checkbox', id: 'plot-log' });
+  const saveBtn = el('button', { class: 'secondary', id: 'plot-save-png', title: 'Save this heatmap with its title, axes and colour bar as a PNG picture' }, 'Save PNG');
+  tools.append(
+    el('label', { class: 'ctl' }, 'Colour map ', cmapSel),
+    el('label', { class: 'chk' }, rev, ' Reverse'),
+    el('label', { class: 'ctl' }, 'Range ', rangeSel), customBox,
+    el('label', { class: 'chk' }, logBox, ' Log scale'),
+    saveBtn, note);
+  let p = null, rr = null;
+  const paint = () => {
+    customBox.hidden = mode() !== 'custom';
+    rr = resolveRange(flat, { mode: mode(), custom: custom(), attrs: info.attrs, decoded: r.decoded, log: P.log });
+    logBox.disabled = !(rr && rr.logOk);
+    logBox.checked = !!(rr && rr.log);
+    note.className = rr && rr.error ? 'err note' : 'muted note';
+    note.textContent = rr && rr.error ? rr.error : '';
+    p = heatmap(canvas, r.values, { width, cmap: colormap(P.cmap, P.reverse), range: rr });
+    if (p) { canvas.dataset.cellSize = String(p.scale); canvas.dataset.rows = String(p.rows); canvas.dataset.cols = String(p.cols); }
+    saveBtn.disabled = !p;
+  };
+  const change = () => { savePlotPrefs(); paint(); };
+  cmapSel.addEventListener('change', () => { P.cmap = cmapSel.value; change(); });
+  rev.addEventListener('change', () => { P.reverse = rev.checked; change(); });
+  rangeSel.addEventListener('change', () => {
+    P.range = rangeSel.value;
+    if (P.range === 'custom' && !P.custom[info.path] && rr) { P.custom[info.path] = { min: String(rr.lo), max: String(rr.hi) }; minIn.value = String(rr.lo); maxIn.value = String(rr.hi); }
+    change();
+  });
+  const setCustom = () => { P.custom[info.path] = { min: minIn.value, max: maxIn.value }; change(); };
+  minIn.addEventListener('change', setCustom); maxIn.addEventListener('change', setCustom);
+  logBox.addEventListener('change', () => { P.log = logBox.checked; change(); });
+  paint();
+  const cellAt = e => { const h = p && p.hit(e.offsetX, e.offsetY); if (!h) return null; return { h, ri: r.start[v.rowAxis] + h.r * r.step[v.rowAxis], ci: r.start[v.colAxis] + h.c * r.step[v.colAxis] }; };
+  const readout = x => `${info.dims[v.rowAxis]}=${coordLabel(rc, x.ri)}  ${info.dims[v.colAxis]}=${coordLabel(cc, x.ci)}  value=${fmtNum(r.values[x.h.r][x.h.c])}`;
+  canvas.addEventListener('mousemove', e => { const x = cellAt(e); if (x) hover.textContent = readout(x); });
+  canvas.addEventListener('click', e => {
+    const x = cellAt(e); if (!x) return;
+    hover.textContent = readout(x);
+    if (nd >= 3) {
+      const keep = state.seriesAxis && state.seriesAxis.path === info.path ? state.seriesAxis.axis : undefined;
+      state.seriesAt = { path: info.path, rowAxis: v.rowAxis, colAxis: v.colAxis, ri: x.ri, ci: x.ci, axis: keep };
+      showSeries(info, seriesBox, width);
+    }
+  });
+  saveBtn.addEventListener('click', async () => {
+    if (!p || !rr) return;
+    try {
+      const fx = await fixedText(info, v);
+      const rowTick = i => coordLabel(rc, r.start[v.rowAxis] + i * r.step[v.rowAxis]);
+      const colTick = i => coordLabel(cc, r.start[v.colAxis] + i * r.step[v.colAxis]);
+      const title = cf(info) + (fx.text ? ', ' + fx.text : '');
+      const url = heatmapPng(r.values, { title, cmap: colormap(P.cmap, P.reverse), range: rr, rowLabel: info.dims[v.rowAxis], colLabel: info.dims[v.colAxis], rowTick, colTick, units });
+      await savePng(url, `${safeName(info.name)}${fx.name ? '-' + fx.name : ''}.png`, note);
+    } catch (e) { note.className = 'err note'; note.textContent = 'Could not draw the picture: ' + e.message; }
+  });
+  const sa = state.seriesAt;
+  if (nd >= 3 && sa && sa.path === info.path && sa.rowAxis === v.rowAxis && sa.colAxis === v.colAxis) showSeries(info, seriesBox, width);
+  else state.seriesAt = null;
+  showStats(bar, r, `${sampled}, ${Math.round(performance.now() - t0)} ms`);
+}
+
+/**
+ * Series at a point: values along one other dimension at the clicked cell, the sliders fixing the rest.
+ * The dimension is the first one that is not the row or column dimension unless the user picks another.
+ */
+async function showSeries(info, box, width) {
+  const v = state.view, sa = state.seriesAt;
+  const others = info.dims.map((_, d) => d).filter(d => d !== v.rowAxis && d !== v.colAxis);
+  if (!others.length || !sa) return;
+  if (!others.includes(sa.axis)) sa.axis = others[0];
+  const close = () => { state.seriesAt = null; state.closeSeries = null; box.hidden = true; box.replaceChildren(); };
+  state.closeSeries = close;
+  const index = v.index.slice();
+  index[v.rowAxis] = sa.ri; index[v.colAxis] = sa.ci;
+  box.hidden = false;
+  const myToken = {}; box.token = myToken;
+  box.replaceChildren(el('p', { class: 'muted', text: 'Reading series…' }));
+  let s;
+  try {
+    s = await request('series', info.path, { axis: sa.axis, index, decode: state.decode });
+  } catch (e) {
+    if (box.token !== myToken) return;
+    box.replaceChildren(el('div', { class: 'serieshead' }, el('span', { class: 'err', text: e.message }), el('span', { class: 'grow' }), el('button', { class: 'secondary', id: 'series-close', 'aria-label': 'Close series', title: 'Close (Escape)', onclick: close }, '✕')));
+    return;
+  }
+  if (box.token !== myToken || state.seriesAt !== sa) return;
+  const title = seriesTitle(s, fmtNum);
+  const dimSel = el('select', { id: 'series-dim', 'aria-label': 'Series along dimension', disabled: others.length < 2 });
+  for (const d of others) dimSel.append(el('option', { value: d, selected: d === sa.axis, text: `${info.dims[d]} (${info.shape[d]})` }));
+  dimSel.addEventListener('change', () => { sa.axis = Number(dimSel.value); state.seriesAxis = { path: info.path, axis: sa.axis }; showSeries(info, box, width); });
+  const note = el('span', { class: 'muted note', id: 'series-note', role: 'status', text: s.step > 1 ? `every ${s.step}th of ${s.len} values` : '' });
+  const xs = s.coord ? s.values.map((_, i) => (s.coord.times ? (s.coord.times[i] != null ? s.coord.times[i] : s.indices[i]) : s.coord.values[i])) : s.indices;
+  const ys = s.values;
+  const units = s.units || undefined;
+  const canvas = el('canvas', { class: 'plot', id: 'series-canvas', role: 'img', 'aria-label': title });
+  const hover = el('div', { class: 'hover mono', id: 'series-readout', role: 'status' });
+  const csv = () => seriesCsv(s);
+  box.replaceChildren(
+    el('div', { class: 'serieshead' },
+      el('span', { class: 'seriestitle', id: 'series-title', text: title }),
+      el('label', { class: 'ctl' }, 'Along ', dimSel),
+      el('button', { class: 'secondary', id: 'series-save-png', onclick: () => pngOf(() => linePng(xs, ys, { title, xLabel: s.dim, yLabel: units }), `${safeName(s.name)}-${s.fixed.map(f => safeName(f.dim) + f.index).join('-')}-${safeName(s.dim)}.png`, note) }, 'Save PNG'),
+      el('button', { class: 'secondary', id: 'series-copy-csv', onclick: () => { vscode.postMessage({ type: 'copy', text: csv() }); note.className = 'muted note'; note.textContent = `Copied ${ys.length} rows`; } }, 'Copy as CSV'),
+      note, el('span', { class: 'grow' }),
+      el('button', { class: 'secondary', id: 'series-close', 'aria-label': 'Close series', title: 'Close (Escape)', onclick: close }, '✕')),
+    canvas, hover);
+  const p = linePlot(canvas, xs, ys, { width, height: 240, xLabel: s.dim, yLabel: units });
+  if (p) canvas.addEventListener('mousemove', e => { const i = p.hit(e.offsetX); if (i === null) return; hover.textContent = `${s.dim}=${typeof xs[i] === 'number' ? fmtNum(xs[i]) : xs[i]}  value=${fmtNum(ys[i])}`; });
+}
 
 vscode.postMessage({ type: 'ready' });

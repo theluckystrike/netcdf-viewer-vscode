@@ -205,6 +205,31 @@
           "minimum": 2,
           "description": "Stop a read that takes longer than this. The reader restarts and VS Code stays responsive."
         },
+        "hdf5NetcdfExplorer.colormap": {
+          "type": "string",
+          "default": "viridis",
+          "enum": [
+            "viridis",
+            "cividis",
+            "magma",
+            "inferno",
+            "plasma",
+            "turbo",
+            "gray",
+            "coolwarm"
+          ],
+          "enumDescriptions": [
+            "Perceptually uniform, purple to yellow (default)",
+            "Uniform and readable with colour vision deficiency",
+            "Black to light yellow through purple",
+            "Black to light yellow through red",
+            "Blue to yellow through magenta",
+            "Rainbow-like, high contrast",
+            "Black to white",
+            "Diverging: blue for low, white in the middle, red for high (RdBu reversed)"
+          ],
+          "description": "Colour map for heatmaps when a file is opened. You can change it in the plot, and the viewer remembers your choice for each file."
+        },
         "hdf5NetcdfExplorer.askForRating": {
           "type": "boolean",
           "default": true,

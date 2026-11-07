@@ -47,12 +47,30 @@ async function chooseExportFile(source, defaultName) {
   return { path: target.fsPath, uri: target, format: /\.json$/i.test(target.fsPath) ? 'json' : 'csv' };
 }
 
+/** Save dialog for "Save PNG", next to the source file. Never the source file itself. */
+async function choosePngFile(source, defaultName) {
+  const target = await vscode.window.showSaveDialog({
+    defaultUri: vscode.Uri.file(path.join(path.dirname(source.fsPath), defaultName)),
+    filters: { 'PNG image': ['png'] },
+    saveLabel: 'Save PNG',
+    title: 'Save plot as PNG',
+  });
+  if (!target) return null;
+  if (target.scheme === 'file' && path.resolve(target.fsPath) === path.resolve(source.fsPath)) {
+    throw new Error('Pick a new file name. The picture never overwrites the file you are viewing.');
+  }
+  return { path: target.fsPath, uri: target };
+}
+
+const COLORMAPS = ['viridis', 'cividis', 'magma', 'inferno', 'plasma', 'turbo', 'gray', 'coolwarm'];
+
 function settings() {
   const c = vscode.workspace.getConfiguration('hdf5NetcdfExplorer');
   return {
     maxReadValues: Math.max(10000, c.get('maxReadValues', 1000000)),
     maxFileSizeMB: Math.max(0, c.get('maxFileSizeMB', 0)),
     timeoutMs: Math.max(2, c.get('readTimeoutSeconds', 20)) * 1000,
+    colormap: COLORMAPS.includes(c.get('colormap', 'viridis')) ? c.get('colormap', 'viridis') : 'viridis',
   };
 }
 
@@ -94,6 +112,13 @@ class Provider {
         const target = vscode.Uri.file(file);
         vscode.window.showInformationMessage(`Exported to ${path.basename(file)}`, 'Open').then(a => { if (a === 'Open') vscode.commands.executeCommand('vscode.open', target); });
       },
+      choosePngFile: ({ defaultName }) => choosePngFile(uri, defaultName),
+      writePng: async (file, bytes) => {
+        const target = vscode.Uri.file(file);
+        await vscode.workspace.fs.writeFile(target, bytes);
+        vscode.window.showInformationMessage(`Saved ${path.basename(file)}`, 'Open').then(a => { if (a === 'Open') vscode.commands.executeCommand('vscode.open', target); });
+      },
+      ui: { colormap: s.colormap },
       createWorker: () => new Worker(path.join(this.context.extensionPath, 'dist', 'worker.mjs'), {
         workerData: { filePath: uri.fsPath, opts: { maxReadValues: s.maxReadValues, maxFileSizeMB: s.maxFileSizeMB } },
       }),
