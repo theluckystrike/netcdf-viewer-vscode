@@ -61,8 +61,12 @@ export function validateRequest(msg, limits = DEFAULT_LIMITS) {
           colStart: int(v.colStart, 0, BIG, 0), colCount: int(v.colCount, 0, BIG, 1),
           rowStep: int(v.rowStep, 1, BIG, 1), colStep: int(v.colStep, 1, BIG, 1),
         };
-        if (view.rowCount * Math.max(1, view.colCount) > limits.maxReadValues) {
-          return { ok: false, error: `This read asks for ${view.rowCount * Math.max(1, view.colCount)} values. The limit is ${limits.maxReadValues} (setting hdf5NetcdfExplorer.maxReadValues).` };
+        // Count the values actually read: a sampled plot reads every rowStep-th row and colStep-th column.
+        // (Before 0.4.0 the count left out the step, so every plot of a 2D field over 1,000,000 cells was refused,
+        // for example a 0.25 degree global grid of 721 x 1440.)
+        const nValues = Math.ceil(view.rowCount / view.rowStep) * Math.max(1, Math.ceil(view.colCount / view.colStep));
+        if (nValues > limits.maxReadValues) {
+          return { ok: false, error: `This read asks for ${nValues} values. The limit is ${limits.maxReadValues} (setting hdf5NetcdfExplorer.maxReadValues).` };
         }
         return { ok: true, req: { type: 'read', reqId, path: msg.path, view, decode: msg.decode !== false, purpose: msg.purpose === 'plot' ? 'plot' : 'table' } };
       }

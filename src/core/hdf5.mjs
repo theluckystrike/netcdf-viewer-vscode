@@ -1,7 +1,7 @@
 // HDF5 and NetCDF-4 backend on top of h5wasm (Node build: the HDF5 C library reads the file by offset,
 // so only the bytes of the requested slice and the metadata are read).
 import { viewToHyperslab, toH5Ranges, toRows, product } from './slice.mjs';
-import { describeH5Type, describeFilters, attrValue, jsonSafe, isNumericH5 } from './values.mjs';
+import { describeH5Type, describeFilters, unreadableFilters, attrValue, jsonSafe, isNumericH5 } from './values.mjs';
 import { packing, decodeValue, parseTimeUnits, decodeTime, cfSummary } from './cf.mjs';
 import { stats } from './stats.mjs';
 
@@ -149,6 +149,10 @@ export function openHdf5(h5wasm, filePath, opts = {}) {
     const hs = viewToHyperslab(shape, view);
     const n = product(hs.count);
     if (opts.maxReadValues && n > opts.maxReadValues) throw new Error(`Slice has ${n} values; the limit is ${opts.maxReadValues}.`);
+    let filters = [];
+    try { filters = o.filters || []; } catch { /* no filter pipeline */ }
+    const bad = unreadableFilters(filters);
+    if (bad && n > 0) throw new Error(bad);
     let flat;
     try {
       flat = shape.length === 0 ? [o.value] : (n === 0 ? [] : o.slice(toH5Ranges(hs)));

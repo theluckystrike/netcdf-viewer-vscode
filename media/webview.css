@@ -22,7 +22,7 @@ button:focus-visible, .node:focus-visible { outline: 1px solid var(--vscode-focu
 .node.sel { background: var(--vscode-list-activeSelectionBackground, #04395e); color: var(--vscode-list-activeSelectionForeground, inherit); }
 .node .icon, .node .twisty { display: inline-block; width: 16px; opacity: .8; }
 .node .muted { font-size: 11px; }
-#detail { flex: 1; min-width: 0; overflow: auto; padding: 8px 16px 24px; }
+#detail { flex: 1; min-width: 0; overflow: auto; padding: 8px 16px 48px; }
 /* Narrow editors (split view, small laptop): the tree goes above the details instead of beside them. */
 @media (max-width: 560px) {
   header { flex-wrap: wrap; }
@@ -73,3 +73,4 @@ canvas#heatmap-canvas { cursor: crosshair; }
 .series { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--vscode-panel-border, #444); }
 .serieshead { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-bottom: 6px; }
 .seriestitle { font-weight: 600; }
+button.play { padding: 1px 8px; min-width: 28px; }

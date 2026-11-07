@@ -50,7 +50,7 @@ test('webview HTML has a strict CSP and no inline script without nonce', () => {
 });
 
 test('webview and core never build HTML from data or run code', () => {
-  for (const f of ['src/webview/main.js', 'src/webview/plot.js', 'src/webview/util.js', 'src/core/hdf5.mjs', 'src/core/netcdf3.mjs', 'src/worker.mjs']) {
+  for (const f of ['src/webview/main.js', 'src/webview/plot.js', 'src/webview/util.js', 'src/webview/map.js', 'src/core/cdfheader.mjs', 'src/core/hdf5.mjs', 'src/core/netcdf3.mjs', 'src/worker.mjs']) {
     const src = fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8');
     assert.doesNotMatch(src, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|child_process/, f);
   }
@@ -59,4 +59,6 @@ test('webview and core never build HTML from data or run code', () => {
 test('replaceChildren never gets a null child (it would print "null" in the overview)', () => {
   const src = fs.readFileSync(new URL('../src/webview/main.js', import.meta.url), 'utf8');
   for (const m of src.matchAll(/replaceChildren\(([\s\S]*?)\);\n/g)) assert.doesNotMatch(m[1], /:\s*null\s*[,)]/, m[0].slice(0, 120));
+  // DOM append() prints "null" too (0.4.0: the Coastlines box is only there for lat-lon grids).
+  for (const m of src.matchAll(/[a-zA-Z]\.append\(([\s\S]*?)\);\n/g)) assert.doesNotMatch(m[1], /:\s*null\s*[,)]/, m[0].slice(0, 120));
 });

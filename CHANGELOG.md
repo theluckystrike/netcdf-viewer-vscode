@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.4.0 (2026-11-08)
+
+- Coastlines on maps. When a heatmap's rows and columns are latitude and longitude (found from CF units, standard names or the usual names), the Natural Earth 1:110m coastlines are drawn over it, and the saved PNG has them too. Grids from 0 to 360 and from -180 to 180 work, and north is at the top when latitude grows with the row number. A "Coastlines" checkbox turns them off.
+- Play along a dimension. A ▶ button next to each slider steps through time, or any other dimension, with a speed menu (0.5×, 1×, 2×, Max). The next step starts only after the last one is drawn, and the colour range stays at the first frame's range so the frames compare. Escape, a slider move or another variable stops it.
+- RGB images. An 8-bit dataset shaped height x width x 3 (or 4), or an HDF5 image marked `CLASS=IMAGE`, shows as one colour picture, with the R, G, B values under the mouse and Save PNG. Microscopy, EBSD and camera frames stored in HDF5 look the way they should. A checkbox switches back to the heatmap of one channel.
+- NetCDF CDF-5 (64-bit data) files open. They are written by PnetCDF, WRF, E3SM and `nccopy -k cdf5`. The unsigned and 64-bit integer types are shown exactly; values above 2^53 show as text so no digit is lost.
+- Fixed: a plot of a 2D field with more than 1,000,000 cells was refused, even though the plot reads only every Nth row and column. A 0.25 degree global grid (721 x 1440) now plots. Found while building the JetBrains version.
+- Fixed: a buoy or station series stored as (time, lat=1, lon=1), as NDBC files are, opened as a 1 x 1 heatmap. It now opens as a line along time, and heatmaps skip dimensions of length 1. The Columns menu has a "none (line plot)" choice for any variable.
+- Fixed: an HDF5 or NetCDF-4 file that was cut off during a copy or download now says so, with the expected and actual size, instead of a low-level read error.
+- HDF5 compression plugins: datasets compressed with LZF, Blosc, Blosc2, bitshuffle, LZ4, Zstd, bzip2 or ZFP now read, through the h5wasm-plugins libraries. That covers h5py's `compression="lzf"`, hdf5plugin and detector files such as Dectris and ESRF images.
+- Fixed: a dataset compressed with a filter the viewer could not decode showed made-up numbers from leftover memory. Found on a real ESRF detector file compressed with bitshuffle. Those filters are now read, and any other one (SZ, JPEG) gets a message that names it.
+- Fixed: a big heatmap was squeezed or stretched when its rows and columns were sampled with different steps. A 720 x 1440 global grid drew at about 4:3 instead of 2:1. Both axes now share one step, so maps and pictures keep their shape.
+- Fixed: an unlimited maximum shape shows as ∞ instead of 18446744073709552000.
+- New name in the Marketplace: NetCDF Viewer & HDF5 Viewer (NC Viewer, H5 Viewer). The extension ID, settings and commands stay the same.
+- More tools by Zovo and the More free viewers list use the current names of the related extensions.
+
 ## 0.3.0 (2026-11-07)
 
 - New name in the Marketplace: NetCDF Viewer & HDF5 Viewer (NC, H5). The extension ID, settings and commands stay the same.

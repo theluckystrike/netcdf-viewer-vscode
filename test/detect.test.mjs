@@ -8,7 +8,7 @@ const b = (...x) => Uint8Array.from(x);
 test('signatures', () => {
   assert.equal(detectFormat(b(0x43, 0x44, 0x46, 1)).label, 'NetCDF-3 classic');
   assert.equal(detectFormat(b(0x43, 0x44, 0x46, 2)).label, 'NetCDF-3 64-bit offset');
-  assert.equal(detectFormat(b(0x43, 0x44, 0x46, 5)).format, 'unsupported');
+  assert.equal(detectFormat(b(0x43, 0x44, 0x46, 5)).format, 'netcdf3'); // CDF-5 opens since 0.4.0
   assert.equal(detectFormat(b(0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a)).format, 'hdf5');
   assert.equal(detectFormat(b(0x0e, 0x03, 0x13, 0x01)).label, 'HDF4');
   assert.equal(detectFormat(b(0xcd, 0xf3, 0, 1)).label, 'NASA CDF');

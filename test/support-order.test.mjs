@@ -14,8 +14,9 @@ test('More free viewers lists live extensions first, once each, without this one
   assert.ok(list.every((p) => p.id !== SELF));
   assert.equal(new Set(list.map((p) => p.id)).size, list.length);
   const firstQueued = list.findIndex((p) => !p.live);
-  assert.ok(firstQueued > 0);
-  assert.ok(list.slice(firstQueued).every((p) => !p.live));
+  // Since 0.4.0 every listed extension can be live (no "coming soon" group); when there are queued ones, they come last.
+  assert.ok(firstQueued === -1 || firstQueued > 0);
+  if (firstQueued > 0) assert.ok(list.slice(firstQueued).every((p) => !p.live));
 });
 
 test('More free viewers puts the closest pairs first in each group', () => {

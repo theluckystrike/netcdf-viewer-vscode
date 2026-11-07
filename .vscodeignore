@@ -2,6 +2,7 @@
 !dist/extension.js
 !dist/worker.mjs
 !dist/webview.js
+!dist/plugins/**
 !media/**
 !images/screenshot.png
 !images/table.png

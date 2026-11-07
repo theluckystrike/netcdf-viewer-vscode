@@ -54,6 +54,25 @@ export function isNumericH5(m) { return m && (m.type === 0 || m.type === 1 || m.
 
 const FILTER_NAMES = { 1: 'deflate (gzip)', 2: 'shuffle', 3: 'fletcher32', 4: 'szip', 5: 'nbit', 6: 'scaleoffset', 307: 'bzip2', 32000: 'lzf', 32001: 'blosc', 32004: 'lz4', 32008: 'bitshuffle', 32013: 'zfp', 32015: 'zstd', 32017: 'sz', 32026: 'blosc2' };
 
+// Filters compiled into h5wasm's HDF5: deflate, shuffle, fletcher32, szip, nbit, scaleoffset (each checked with a
+// write and read back in h5wasm 0.10.3). For a filter with no decoder (a plugin that is not installed), HDF5 logs an
+// error but h5wasm still returns a buffer of leftover memory, so the values would be made up. unreadableFilters()
+// lets the reader refuse such a dataset.
+export const BUILTIN_FILTERS = new Set([1, 2, 3, 4, 5, 6]);
+
+// Filters this worker can decode: the built-in ones plus the h5wasm-plugins libraries found at start (filters.mjs).
+const DECODABLE = new Set(BUILTIN_FILTERS);
+export function addDecodableFilters(ids) { for (const id of ids) DECODABLE.add(id); }
+export const decodableFilters = () => new Set(DECODABLE);
+
+/** null when every filter can be decoded, else a message that names the filters that cannot. */
+export function unreadableFilters(filters, decodable = DECODABLE) {
+  const bad = (filters || []).filter(f => !decodable.has(f.id));
+  if (!bad.length) return null;
+  const names = bad.map(f => `${(FILTER_NAMES[f.id] || String(f.name || 'filter').split(';')[0].trim() || 'filter')} (HDF5 filter ${f.id})`).join(' and ');
+  return `This dataset is compressed with ${names}, which this viewer cannot decode yet, so its values are not shown. Its shape, type and attributes above are correct. To read it, use h5py with the hdf5plugin package, or write a gzip copy with h5repack -f GZIP=4 (with the filter plugin installed).`;
+}
+
 /** h5wasm filters -> [{id, name, level?}] with readable names. */
 export function describeFilters(filters) {
   return (filters || []).map(f => {

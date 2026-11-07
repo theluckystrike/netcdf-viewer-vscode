@@ -5,6 +5,7 @@ import { viewToHyperslab, toRows, product } from './slice.mjs';
 import { attrValue, jsonSafe } from './values.mjs';
 import { packing, decodeValue, parseTimeUnits, decodeTime, cfSummary } from './cf.mjs';
 import { stats } from './stats.mjs';
+import { parseCdfHeader, ShortHeader, getValue, recordsFromSize } from './cdfheader.mjs';
 
 const TYPES = {
   byte: { size: 1, dtype: 'int8', get: (dv, o) => dv.getInt8(o) },
@@ -13,15 +14,37 @@ const TYPES = {
   int: { size: 4, dtype: 'int32', get: (dv, o) => dv.getInt32(o, false) },
   float: { size: 4, dtype: 'float32', get: (dv, o) => dv.getFloat32(o, false) },
   double: { size: 8, dtype: 'float64', get: (dv, o) => dv.getFloat64(o, false) },
+  // CDF-5 only
+  ubyte: { size: 1, dtype: 'uint8', get: (dv, o) => dv.getUint8(o) },
+  ushort: { size: 2, dtype: 'uint16', get: (dv, o) => dv.getUint16(o, false) },
+  uint: { size: 4, dtype: 'uint32', get: (dv, o) => dv.getUint32(o, false) },
+  int64: { size: 8, dtype: 'int64', get: (dv, o) => getValue(dv, o, 'int64') },
+  uint64: { size: 8, dtype: 'uint64', get: (dv, o) => getValue(dv, o, 'uint64') },
 };
 const MAX_HEADER = 64 * 1024 * 1024;
 
 export function readHeader(NetCDFReader, fd, fileSize) {
   let len = Math.min(fileSize, 64 * 1024), lastErr;
+  const v = Buffer.alloc(4);
+  fs.readSync(fd, v, 0, 4, 0);
+  const cdf5 = v[0] === 0x43 && v[1] === 0x44 && v[2] === 0x46 && v[3] === 5;
   for (;;) {
     const buf = Buffer.alloc(len);
     fs.readSync(fd, buf, 0, len, 0);
-    try { return new NetCDFReader(buf); } catch (e) { lastErr = e; }
+    if (cdf5) {
+      // netcdfjs reads CDF-1 and CDF-2 only; CDF-5 (64-bit data) has its own parser.
+      try {
+        const h = parseCdfHeader(buf);
+        // A streaming file has not written its record count yet: count the records from the file size.
+        if (h.recordDimension && h.recordDimension.length < 0) h.recordDimension.length = recordsFromSize(h, fileSize);
+        return h;
+      } catch (e) {
+        if (!(e instanceof ShortHeader)) throw new Error('Not a valid NetCDF CDF-5 file: ' + e.message);
+        lastErr = e;
+      }
+    } else {
+      try { return new NetCDFReader(buf); } catch (e) { lastErr = e; }
+    }
     if (len >= fileSize) break;
     if (len >= MAX_HEADER) throw new Error('The NetCDF header is larger than 64 MB. It is not supported.');
     len = Math.min(fileSize, len * 4);
@@ -41,7 +64,7 @@ export function openNetcdf3(NetCDFReader, filePath, opts = {}) {
   const recId = r.recordDimension ? r.recordDimension.id : -1;
   const numRecs = r.recordDimension ? r.recordDimension.length : 0;
   const recStep = r.recordDimension ? r.recordDimension.recordStep : 0;
-  const label = r.version === 2 || /64/.test(String(r.version)) ? 'NetCDF-3 64-bit offset' : 'NetCDF-3 classic';
+  const label = r.cdfVersion === 5 ? 'NetCDF-3 CDF-5 (64-bit data)' : r.version === 2 || /64/.test(String(r.version)) ? 'NetCDF-3 64-bit offset' : 'NetCDF-3 classic';
 
   const vars = new Map();
   for (const v of r.variables) {

@@ -3,12 +3,17 @@ import { parentPort, workerData } from 'node:worker_threads';
 import { NetCDFReader } from 'netcdfjs';
 import { openFile } from './core/open.mjs';
 import { readSeries } from './core/series.mjs';
+import { installFilterPlugins } from './core/filters.mjs';
+import { fileURLToPath } from 'node:url';
+
+// Compression plugins: dist/plugins next to the bundled worker, or node_modules when the tests run the source.
+const PLUGIN_DIRS = ['./plugins/', '../node_modules/h5wasm-plugins/plugins/'].map(p => { try { return fileURLToPath(new URL(p, import.meta.url)); } catch { return null; } });
 
 let h5p;
 const libs = {
   NetCDFReader,
   h5wasm: async () => {
-    if (!h5p) h5p = import('h5wasm/node').then(async m => { const h = m.default || m; await h.ready; return h; });
+    if (!h5p) h5p = import('h5wasm/node').then(async m => { const h = m.default || m; const mod = await h.ready; installFilterPlugins(mod, PLUGIN_DIRS); return h; });
     return h5p;
   },
 };

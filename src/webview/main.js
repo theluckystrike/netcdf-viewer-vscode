@@ -1,8 +1,9 @@
 // Webview UI. All file content goes into the DOM as text nodes (textContent), never parsed as HTML.
-import { fmtNum, fmtBytes, shapeText, pythonSnippet, COLORMAPS, isColormap, colormap, resolveRange, attrRange } from './util.js';
-import { linePlot, heatmap, heatmapPng, linePng } from './plot.js';
+import { fmtNum, fmtBytes, shapeText, pythonSnippet, COLORMAPS, isColormap, colormap, resolveRange, attrRange, rgbChannels, plotSteps } from './util.js';
+import { linePlot, heatmap, heatmapPng, linePng, rgbImage } from './plot.js';
 import { seriesCsv } from '../core/export.mjs';
 import { seriesTitle } from '../core/series.mjs';
+import { geoKind, coastlineCells } from './map.js';
 
 const vscode = acquireVsCodeApi();
 const app = document.getElementById('app');
@@ -35,6 +36,8 @@ const state = { init: null, selected: null, info: null, view: null, tab: 'table'
 
 // Plot choices (colour map, reverse, range mode, custom ranges per variable, log) live in the webview state,
 // so they come back when this file's tab is shown again. The colour map starts from the setting.
+// Play along a dimension: milliseconds per step (a step never starts before the last one is drawn).
+const PLAY_SPEEDS = [[1000, '0.5×'], [500, '1×'], [250, '2×'], [0, 'Max']];
 const RANGE_MODES = [['minmax', 'Min to max'], ['p2_98', '2-98 percentile'], ['symmetric', 'Symmetric around 0'], ['attrs', 'From attributes'], ['custom', 'Custom']];
 function loadPlotPrefs(ui) {
   const saved = (vscode.getState() || {}).plot || {};
@@ -45,10 +48,17 @@ function loadPlotPrefs(ui) {
     range: RANGE_MODES.some(m => m[0] === saved.range) ? saved.range : 'p2_98',
     log: saved.log === true,
     custom: saved.custom && typeof saved.custom === 'object' ? saved.custom : {},
+    coast: saved.coast !== false,
+    rgb: saved.rgb !== false,
+    speed: PLAY_SPEEDS.some(x => x[0] === saved.speed) ? saved.speed : 500,
   };
 }
 const savePlotPrefs = () => vscode.setState({ ...(vscode.getState() || {}), plot: state.plot });
-document.addEventListener('keydown', e => { if (e.key === 'Escape' && state.closeSeries) state.closeSeries(); });
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (state.play) { stopPlay(); return; }
+  if (state.closeSeries) state.closeSeries();
+});
 
 window.addEventListener('message', ev => {
   const m = ev.data;
@@ -146,6 +156,7 @@ function attrTable(attrs, showInternal) {
 }
 
 async function select(path) {
+  stopPlay();
   state.selected = path; drawTree();
   const detail = document.getElementById('detail');
   detail.replaceChildren(el('p', { class: 'muted', text: 'Loading…' }));
@@ -158,9 +169,15 @@ async function select(path) {
   const nd = info.shape.length;
   state.view = { rowAxis: 0, colAxis: nd > 1 ? nd - 1 : -1, index: new Array(nd).fill(0), rowStart: 0, colStart: 0 };
   if (nd >= 2) {
-    // Show the last two dims (lat x lon for most climate data) and fix the others at 0.
-    state.view.rowAxis = nd - 2; state.view.colAxis = nd - 1;
+    // Show the last two dims (lat x lon for most climate data) and fix the others at 0. Dimensions of length 1
+    // are skipped: a buoy or station series stored as (time, lat=1, lon=1) shows as a line along time.
+    const long = info.shape.map((n, d) => d).filter(d => info.shape[d] > 1);
+    if (long.length >= 2) { state.view.rowAxis = long[long.length - 2]; state.view.colAxis = long[long.length - 1]; }
+    else if (long.length === 1) { state.view.rowAxis = long[0]; state.view.colAxis = -1; }
+    else { state.view.rowAxis = nd - 2; state.view.colAxis = nd - 1; }
   }
+  // An RGB image (height, width, 3 or 4) shows height x width, with the channels together.
+  if (rgbChannels(info)) { state.view.rowAxis = 0; state.view.colAxis = 1; }
   state.tab = info.compound || !info.numeric || nd === 0 ? 'table' : (nd >= 2 ? 'plot' : state.tab);
   showDataset(info, detail);
 }
@@ -192,6 +209,25 @@ async function coordValues(path, len) {
   state.coordCache.set(path, p);
   return p;
 }
+/** CF units and standard_name of a coordinate variable (to tell latitude and longitude apart from other axes). */
+function coordMeta(path) {
+  if (!path) return Promise.resolve(null);
+  const key = 'meta:' + path;
+  if (!state.coordCache.has(key)) state.coordCache.set(key, request('info', path).then(i => i.cf || {}, () => null));
+  return state.coordCache.get(key);
+}
+
+/** Coastline overlay for a heatmap whose rows and columns are latitude and longitude, or null. */
+async function geoOverlay(info, v, r, rc, cc) {
+  if (!rc || !cc || rc.times || cc.times) return null;
+  const rp = info.coords && info.coords[v.rowAxis], cp = info.coords && info.coords[v.colAxis];
+  const [rm, cm] = await Promise.all([coordMeta(rp), coordMeta(cp)]);
+  const kind = (d, p, m) => geoKind(info.dims[d], m) || (p ? geoKind(p.split('/').pop(), m) : null);
+  const rk = kind(v.rowAxis, rp, rm), ck = kind(v.colAxis, cp, cm);
+  if (!rk || !ck || rk === ck) return null;
+  const at = (c, axis, count) => Array.from({ length: count }, (_, i) => c.values[r.start[axis] + i * r.step[axis]]);
+  return coastlineCells(rk, ck, at(rc, v.rowAxis, r.rows), at(cc, v.colAxis, r.cols));
+}
 const coordLabel = (c, i) => c ? (c.times && c.times[i] != null ? c.times[i] : fmtNum(c.values[i])) : String(i);
 
 function compression(info) {
@@ -211,6 +247,7 @@ function packingText(p) {
 }
 
 function showDataset(info, detail) {
+  stopPlay();
   const cf = info.cf || {};
   const nd = info.shape.length;
   const lib = state.init.format === 'netcdf3' || /NetCDF/.test(state.init.label) ? 'xarray' : 'h5py';
@@ -227,7 +264,7 @@ function showDataset(info, detail) {
     ['Units', cf.units], ['Standard name', cf.standard_name], ['Calendar', cf.time ? cf.calendar || 'standard' : undefined],
     ['Packing', packingText(cf.packing)], ['Coordinates', coordsText || cf.coordinates],
     ['Chunks', info.chunks ? info.chunks.join(' × ') : undefined], ['Compression', compression(info)],
-    ['Size in memory', fmtBytes(info.bytes)], ['Max shape', info.maxshape && info.maxshape.some((m, i) => m !== info.shape[i]) ? info.maxshape.map(m => (m === null || m < 0 ? '∞' : m)).join(' × ') : undefined],
+    ['Size in memory', fmtBytes(info.bytes)], ['Max shape', info.maxshape && info.maxshape.some((m, i) => m !== info.shape[i]) ? info.maxshape.map(m => (m === null || m < 0 || m >= 2 ** 53 ? '∞' : m)).join(' × ') : undefined],
   ]);
   const controls = el('div', { class: 'controls' });
   const tabs = el('div', { class: 'tabs', role: 'tablist' });
@@ -267,14 +304,18 @@ function buildControls(info, box, redraw) {
     box.append(el('label', { class: 'chk' }, cb, ' Apply CF decoding (scale, offset, fill, time)'));
   }
   if (nd < 2) return;
+  let sliders = 0;
   const axisSel = (which) => {
     const s = el('select', { 'aria-label': which === 'rowAxis' ? 'Row dimension' : 'Column dimension', onchange: e => {
+      stopPlay();
       const a = Number(e.target.value), other = which === 'rowAxis' ? 'colAxis' : 'rowAxis';
       if (a === v[other]) v[other] = v[which];
+      if (v.rowAxis === -1) v.rowAxis = info.dims.findIndex((_, d) => d !== a);
       v[which] = a; v.rowStart = 0; v.colStart = 0;
       box.replaceChildren(); buildControls(info, box, redraw); redraw();
     } });
     info.dims.forEach((d, i) => s.append(el('option', { value: i, selected: v[which] === i, text: `${d} (${info.shape[i]})` })));
+    if (which === 'colAxis') s.append(el('option', { value: -1, selected: v.colAxis === -1, text: 'none (line plot)' }));
     return s;
   };
   box.append(el('span', { class: 'ctl' }, 'Rows ', axisSel('rowAxis')), el('span', { class: 'ctl' }, 'Columns ', axisSel('colAxis')));
@@ -286,12 +327,50 @@ function buildControls(info, box, redraw) {
     const num = el('input', { type: 'number', min: 0, max: n - 1, value: v.index[d], 'aria-label': info.dims[d] + ' index' });
     const range = el('input', { type: 'range', min: 0, max: Math.max(0, n - 1), value: v.index[d], 'aria-label': info.dims[d] });
     let t;
-    const set = x => { v.index[d] = Math.max(0, Math.min(n - 1, Math.trunc(Number(x) || 0))); num.value = v.index[d]; range.value = v.index[d]; setLab(); clearTimeout(t); t = setTimeout(redraw, 120); };
+    const show = x => { v.index[d] = Math.max(0, Math.min(n - 1, Math.trunc(Number(x) || 0))); num.value = v.index[d]; range.value = v.index[d]; setLab(); };
+    const set = x => { stopPlay(); show(x); clearTimeout(t); t = setTimeout(redraw, 120); };
     range.addEventListener('input', e => set(e.target.value));
     num.addEventListener('change', e => set(e.target.value));
-    box.append(el('span', { class: 'ctl slider' }, `${info.dims[d]} `, range, num, lab));
+    const play = el('button', { class: 'secondary play', id: `play-${d}`, 'aria-label': `Play along ${info.dims[d]}`, 'aria-pressed': 'false', title: `Play along ${info.dims[d]} (Escape stops)`, disabled: n < 2 }, '▶');
+    play.addEventListener('click', () => (state.play && state.play.d === d ? stopPlay() : startPlay(d, n, show, play, redraw)));
+    box.append(el('span', { class: 'ctl slider' }, `${info.dims[d]} `, play, range, num, lab));
     setLab();
+    sliders++;
   }
+  if (sliders) {
+    const speed = el('select', { id: 'play-speed', 'aria-label': 'Play speed' });
+    for (const [ms, label] of PLAY_SPEEDS) speed.append(el('option', { value: ms, selected: state.plot.speed === ms, text: label }));
+    speed.addEventListener('change', () => { state.plot.speed = Number(speed.value); savePlotPrefs(); });
+    box.append(el('label', { class: 'ctl' }, 'Speed ', speed));
+  }
+}
+
+/**
+ * Steps one dimension forward (wrapping to 0 at the end) and redraws, until stopped. The next step starts only
+ * when the last one is drawn. While it plays the colour range stays at the first frame's range, so frames compare.
+ */
+async function startPlay(d, n, show, btn, redraw) {
+  stopPlay();
+  const v = state.view;
+  const play = { d, btn, stopped: false, range: null, path: state.info && state.info.path };
+  state.play = play;
+  btn.textContent = '⏸'; btn.setAttribute('aria-pressed', 'true'); btn.setAttribute('aria-label', 'Pause');
+  while (!play.stopped && state.view === v) {
+    const t0 = performance.now();
+    show((v.index[d] + 1) % n);
+    const ok = await redraw();
+    if (ok === false) break;
+    const wait = state.plot.speed - (performance.now() - t0);
+    await new Promise(res => setTimeout(res, Math.max(wait, 16)));
+  }
+  if (state.play === play) stopPlay();
+}
+
+function stopPlay() {
+  const p = state.play;
+  if (!p) return;
+  p.stopped = true; state.play = null;
+  p.btn.textContent = '▶'; p.btn.setAttribute('aria-pressed', 'false'); p.btn.setAttribute('aria-label', 'Play');
 }
 
 function showStats(bar, r, note) {
@@ -316,10 +395,11 @@ async function drawTab(info, body, bar) {
     return;
   }
   const nd = info.shape.length, v = state.view;
-  body.replaceChildren(el('p', { class: 'muted', text: 'Reading…' }));
+  // While playing, the last frame stays on screen until the next one is drawn (no flicker).
+  if (!state.play) body.replaceChildren(el('p', { class: 'muted', text: 'Reading…' }));
   const t0 = performance.now();
   try {
-    if (state.tab === 'plot') { await drawPlot(info, body, bar, token, t0); return; }
+    if (state.tab === 'plot') { await drawPlot(info, body, bar, token, t0); return true; }
     const view = { ...v, rowCount: PAGE_ROWS, colCount: v.colAxis >= 0 ? PAGE_COLS : 1 };
     const r = await request('read', info.path, { view, decode: state.decode, purpose: 'table' });
     if (state.drawToken !== token) return;
@@ -351,10 +431,12 @@ async function drawTab(info, body, bar) {
     if (v.colAxis >= 0) pager.append(el('span', { class: 'gap' }), nav('◀ Columns', v.colStart > 0, () => { v.colStart = Math.max(0, v.colStart - PAGE_COLS); }), el('span', { class: 'muted', text: ` ${info.dims[v.colAxis]} ${c0}–${c0 + r.cols - 1} of ${colsTotal} ` }), nav('Columns ▶', c0 + r.cols < colsTotal, () => { v.colStart += PAGE_COLS; }));
     body.replaceChildren(pager, el('div', { class: 'tablewrap' }, t));
     showStats(bar, r, `this page, ${Math.round(performance.now() - t0)} ms`);
+    return true;
   } catch (e) {
-    if (state.drawToken !== token) return;
+    if (state.drawToken !== token) return false;
     body.replaceChildren(el('p', { class: 'err', text: e.message }));
     bar.textContent = '';
+    return false;
   }
 }
 const cf = info => (info.cf && info.cf.units ? `${info.name} (${info.cf.units})` : info.name);
@@ -390,13 +472,14 @@ async function fixedText(info, v) {
 async function drawPlot(info, body, bar, token, t0) {
   const nd = info.shape.length, v = state.view;
   const rows = info.shape[v.rowAxis], cols = v.colAxis >= 0 ? info.shape[v.colAxis] : 1;
-  const view = nd === 1
+  const line = nd === 1 || v.colAxis < 0, ax = v.rowAxis;
+  const view = line
     ? { ...v, rowStart: 0, rowCount: rows, rowStep: Math.ceil(rows / LINE_MAX), colAxis: -1 }
-    : { ...v, rowStart: 0, colStart: 0, rowCount: rows, colCount: cols, rowStep: Math.ceil(rows / PLOT_MAX), colStep: Math.ceil(cols / PLOT_MAX) };
+    : { ...v, rowStart: 0, colStart: 0, rowCount: rows, colCount: cols, ...plotSteps(rows, cols, PLOT_MAX) };
   const r = await request('read', info.path, { view, decode: state.decode, purpose: 'plot' });
   if (state.drawToken !== token) return;
   state.lastHs = { ...r, single: info.shape.map((_, d) => d !== v.rowAxis && d !== v.colAxis) };
-  const canvas = el('canvas', { class: 'plot', id: nd === 1 ? 'line-canvas' : 'heatmap-canvas', role: 'img', 'aria-label': `Plot of ${info.name}` });
+  const canvas = el('canvas', { class: 'plot', id: line ? 'line-canvas' : 'heatmap-canvas', role: 'img', 'aria-label': `Plot of ${info.name}` });
   const hover = el('div', { class: 'hover mono', id: 'plot-readout', role: 'status' });
   const note = el('span', { class: 'muted note', id: 'plot-note', role: 'status' });
   const tools = el('div', { class: 'plotbar', id: 'plot-controls' });
@@ -404,22 +487,53 @@ async function drawPlot(info, body, bar, token, t0) {
   const units = info.cf && info.cf.units;
   const sampled = r.step.some(s => s > 1) ? `sampled every ${r.step.filter(s => s > 1).join('×')}` : 'all values';
   state.closeSeries = null;
-  if (nd === 1) {
+  if (line) {
     body.replaceChildren(tools, canvas, hover);
-    const c = await coordValues(info.coords && info.coords[0], rows);
+    const c = await coordValues(info.coords && info.coords[ax], rows);
     if (state.drawToken !== token) return;
-    const idx = r.values.map((_, i) => r.start[0] + i * r.step[0]);
+    const idx = r.values.map((_, i) => r.start[ax] + i * r.step[ax]);
     const xs = c ? idx.map(i => (c.times ? (c.times[i] != null ? c.times[i] : i) : c.values[i])) : idx;
     const ys = r.values.map(x => x[0]);
-    const p = linePlot(canvas, xs, ys, { width, xLabel: info.dims[0], yLabel: units });
-    if (p) canvas.addEventListener('mousemove', e => { const i = p.hit(e.offsetX); if (i === null) return; hover.textContent = `${info.dims[0]}=${coordLabel(c, idx[i])}  value=${fmtNum(ys[i])}`; });
-    tools.append(el('button', { class: 'secondary', id: 'plot-save-png', title: 'Save this plot as a PNG picture', onclick: () => pngOf(() => linePng(xs, ys, { title: cf(info), xLabel: info.dims[0], yLabel: units }), `${safeName(info.name)}.png`, note) }, 'Save PNG'), note);
+    const p = linePlot(canvas, xs, ys, { width, xLabel: info.dims[ax], yLabel: units });
+    if (p) canvas.addEventListener('mousemove', e => { const i = p.hit(e.offsetX); if (i === null) return; hover.textContent = `${info.dims[ax]}=${coordLabel(c, idx[i])}  value=${fmtNum(ys[i])}`; });
+    tools.append(el('button', { class: 'secondary', id: 'plot-save-png', title: 'Save this plot as a PNG picture', onclick: () => pngOf(() => linePng(xs, ys, { title: cf(info), xLabel: info.dims[ax], yLabel: units }), `${safeName(info.name)}.png`, note) }, 'Save PNG'), note);
     showStats(bar, r, `${sampled}, ${Math.round(performance.now() - t0)} ms`);
+    return;
+  }
+  const k = rgbChannels(info);
+  const rgbOn = k && v.rowAxis === 0 && v.colAxis === 1;
+  if (rgbOn) {
+    const rgbBox = el('input', { type: 'checkbox', id: 'plot-rgb', checked: state.plot.rgb });
+    rgbBox.addEventListener('change', () => { state.plot.rgb = rgbBox.checked; savePlotPrefs(); drawTab(info, body, bar); });
+    tools.append(el('label', { class: 'chk', title: 'Show the 3 or 4 channels together as one picture' }, rgbBox, ` RGB${k === 4 ? 'A' : ''} image`));
+  }
+  if (rgbOn && state.plot.rgb) {
+    // One read per channel, same rows, columns and sampling as the heatmap.
+    const chans = await Promise.all(Array.from({ length: k }, (_, c) => {
+      const index = v.index.slice(); index[2] = c;
+      return c === v.index[2] ? Promise.resolve(r) : request('read', info.path, { view: { ...view, index }, decode: false, purpose: 'plot' });
+    }));
+    if (state.drawToken !== token) return;
+    canvas.id = 'rgb-canvas';
+    body.replaceChildren(tools, canvas, hover);
+    const pic = rgbImage(canvas, chans.map(c => c.values), { width });
+    canvas.dataset.cellSize = String(pic.scale);
+    const saveRgb = el('button', { class: 'secondary', id: 'plot-save-png', title: 'Save the picture as PNG, one pixel per value shown' }, 'Save PNG');
+    saveRgb.addEventListener('click', () => savePng(pic.pngUrl(), `${safeName(info.name)}.png`, note));
+    tools.append(saveRgb, note);
+    canvas.addEventListener('mousemove', e => {
+      const h = pic.hit(e.offsetX, e.offsetY); if (!h) return;
+      const ri = r.start[0] + h.r * r.step[0], ci = r.start[1] + h.c * r.step[1];
+      hover.textContent = `${info.dims[0]}=${ri}  ${info.dims[1]}=${ci}  ${['R', 'G', 'B', 'A'].slice(0, k).map((ch, c) => `${ch}=${fmtNum(chans[c].values[h.r][h.c])}`).join(' ')}`;
+    });
+    showStats(bar, r, `RGB${k === 4 ? 'A' : ''} picture, ${sampled}, ${Math.round(performance.now() - t0)} ms`);
     return;
   }
   const seriesBox = el('div', { class: 'series', id: 'series', hidden: true });
   body.replaceChildren(tools, canvas, hover, seriesBox);
   const [rc, cc] = await Promise.all([coordValues(info.coords && info.coords[v.rowAxis], rows), coordValues(info.coords && info.coords[v.colAxis], cols)]);
+  if (state.drawToken !== token) return;
+  const geo = await geoOverlay(info, v, r, rc, cc).catch(() => null);
   if (state.drawToken !== token) return;
   const flat = []; for (const row of r.values) for (const x of row) flat.push(x);
   const P = state.plot;
@@ -439,22 +553,32 @@ async function drawPlot(info, body, bar, token, t0) {
   const maxIn = el('input', { type: 'number', step: 'any', id: 'plot-max', 'aria-label': 'Colour range max', value: custom().max ?? '' });
   const customBox = el('span', { class: 'ctl', id: 'plot-custom' }, 'min ', minIn, ' max ', maxIn);
   const logBox = el('input', { type: 'checkbox', id: 'plot-log' });
+  const coastBox = geo ? el('input', { type: 'checkbox', id: 'plot-coast', checked: P.coast }) : null;
   const saveBtn = el('button', { class: 'secondary', id: 'plot-save-png', title: 'Save this heatmap with its title, axes and colour bar as a PNG picture' }, 'Save PNG');
   tools.append(
     el('label', { class: 'ctl' }, 'Colour map ', cmapSel),
     el('label', { class: 'chk' }, rev, ' Reverse'),
     el('label', { class: 'ctl' }, 'Range ', rangeSel), customBox,
     el('label', { class: 'chk' }, logBox, ' Log scale'),
+    ...(coastBox ? [el('label', { class: 'chk', title: 'Natural Earth 1:110m coastlines on latitude-longitude grids' }, coastBox, ' Coastlines')] : []),
     saveBtn, note);
+  const lines = () => (geo && P.coast ? geo.lines : null);
+  const flipY = !!(geo && geo.northUp);
   let p = null, rr = null;
   const paint = () => {
     customBox.hidden = mode() !== 'custom';
     rr = resolveRange(flat, { mode: mode(), custom: custom(), attrs: info.attrs, decoded: r.decoded, log: P.log });
+    // While playing, every frame uses the colour range of the first frame, so the colours compare across steps.
+    const pl = state.play;
+    if (pl && pl.path === info.path && rr && !rr.error) {
+      if (!pl.range || pl.range.log !== rr.log) pl.range = { lo: rr.lo, hi: rr.hi, log: rr.log };
+      else rr = { ...rr, lo: pl.range.lo, hi: pl.range.hi };
+    }
     logBox.disabled = !(rr && rr.logOk);
     logBox.checked = !!(rr && rr.log);
     note.className = rr && rr.error ? 'err note' : 'muted note';
     note.textContent = rr && rr.error ? rr.error : '';
-    p = heatmap(canvas, r.values, { width, cmap: colormap(P.cmap, P.reverse), range: rr });
+    p = heatmap(canvas, r.values, { width, cmap: colormap(P.cmap, P.reverse), range: rr, flipY, lines: lines() });
     if (p) { canvas.dataset.cellSize = String(p.scale); canvas.dataset.rows = String(p.rows); canvas.dataset.cols = String(p.cols); }
     saveBtn.disabled = !p;
   };
@@ -469,6 +593,7 @@ async function drawPlot(info, body, bar, token, t0) {
   const setCustom = () => { P.custom[info.path] = { min: minIn.value, max: maxIn.value }; change(); };
   minIn.addEventListener('change', setCustom); maxIn.addEventListener('change', setCustom);
   logBox.addEventListener('change', () => { P.log = logBox.checked; change(); });
+  if (coastBox) coastBox.addEventListener('change', () => { P.coast = coastBox.checked; change(); });
   paint();
   const cellAt = e => { const h = p && p.hit(e.offsetX, e.offsetY); if (!h) return null; return { h, ri: r.start[v.rowAxis] + h.r * r.step[v.rowAxis], ci: r.start[v.colAxis] + h.c * r.step[v.colAxis] }; };
   const readout = x => `${info.dims[v.rowAxis]}=${coordLabel(rc, x.ri)}  ${info.dims[v.colAxis]}=${coordLabel(cc, x.ci)}  value=${fmtNum(r.values[x.h.r][x.h.c])}`;
@@ -489,14 +614,15 @@ async function drawPlot(info, body, bar, token, t0) {
       const rowTick = i => coordLabel(rc, r.start[v.rowAxis] + i * r.step[v.rowAxis]);
       const colTick = i => coordLabel(cc, r.start[v.colAxis] + i * r.step[v.colAxis]);
       const title = cf(info) + (fx.text ? ', ' + fx.text : '');
-      const url = heatmapPng(r.values, { title, cmap: colormap(P.cmap, P.reverse), range: rr, rowLabel: info.dims[v.rowAxis], colLabel: info.dims[v.colAxis], rowTick, colTick, units });
+      const url = heatmapPng(r.values, { title, cmap: colormap(P.cmap, P.reverse), range: rr, rowLabel: info.dims[v.rowAxis], colLabel: info.dims[v.colAxis], rowTick, colTick, units, flipY, lines: lines() });
       await savePng(url, `${safeName(info.name)}${fx.name ? '-' + fx.name : ''}.png`, note);
     } catch (e) { note.className = 'err note'; note.textContent = 'Could not draw the picture: ' + e.message; }
   });
   const sa = state.seriesAt;
   if (nd >= 3 && sa && sa.path === info.path && sa.rowAxis === v.rowAxis && sa.colAxis === v.colAxis) showSeries(info, seriesBox, width);
   else state.seriesAt = null;
-  showStats(bar, r, `${sampled}, ${Math.round(performance.now() - t0)} ms`);
+  const playing = state.play && state.play.path === info.path ? ', colour range fixed while playing' : '';
+  showStats(bar, r, `${sampled}, ${Math.round(performance.now() - t0)} ms${playing}`);
 }
 
 /**

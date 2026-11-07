@@ -1,8 +1,8 @@
 {
   "name": "hdf5-netcdf-explorer",
-  "displayName": "NetCDF Viewer & HDF5 Viewer (NC, H5)",
-  "description": "NetCDF viewer and HDF5 viewer for .nc, .h5 and .hdf5 files. Browse groups and CF metadata, page through values, plot slices with colour maps, click a point for its time series and save plots as PNG. Offline, no Python.",
-  "version": "0.3.0",
+  "displayName": "NetCDF Viewer & HDF5 Viewer (NC Viewer, H5 Viewer)",
+  "description": "NetCDF viewer and HDF5 viewer for .nc, .h5 and .hdf5 files. Browse groups and CF metadata, page through values, plot maps with coastlines, play through time, click a point for its time series and save plots as PNG. Offline, no Python.",
+  "version": "0.4.0",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -49,14 +49,14 @@
     "earth science",
     "cf conventions",
     "ncdump",
-    "metadata",
+    "cdf5",
     "heatmap",
     "colormap",
     "time series",
     "plot",
-    "slice",
+    "coastlines",
     "data science",
-    "png",
+    "map",
     "offline"
   ],
   "main": "./dist/extension.js",
@@ -291,6 +291,7 @@
   },
   "dependencies": {
     "h5wasm": "^0.10.3",
+    "h5wasm-plugins": "^0.3.0",
     "netcdfjs": "^4.0.0"
   },
   "devDependencies": {

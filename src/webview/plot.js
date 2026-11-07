@@ -106,6 +106,26 @@ function heatImage(rows, nr, nc, cmap, toT) {
   return off;
 }
 
+/**
+ * Coastline (or any) lines over a heatmap. lines are in cell units ([x along columns, y along rows]);
+ * flipY draws row 0 at the bottom. A light halo under a dark line keeps it visible on every colour map.
+ */
+function drawLines(g, lines, x0, y0, scale, nr, flipY, width = 1) {
+  if (!lines || !lines.length) return;
+  g.save();
+  g.lineJoin = 'round'; g.lineCap = 'round';
+  for (const [style, lw] of [['rgba(255,255,255,0.75)', width + 1.6], ['rgba(0,0,0,0.9)', width]]) {
+    g.strokeStyle = style; g.lineWidth = lw;
+    g.beginPath();
+    for (const line of lines) line.forEach(([x, y], i) => {
+      const px = x0 + x * scale, py = y0 + (flipY ? nr - y : y) * scale;
+      if (i === 0) g.moveTo(px, py); else g.lineTo(px, py);
+    });
+    g.stroke();
+  }
+  g.restore();
+}
+
 function colorbar(g, x, y, bh, cmap, range, fg) {
   for (let i = 0; i < bh; i++) { const [R, G, B] = cmap(1 - i / bh); g.fillStyle = `rgb(${R},${G},${B})`; g.fillRect(x, y + i, 12, 1); }
   const toT = makeScale(range.lo, range.hi, range.log);
@@ -127,8 +147,10 @@ function colorbar(g, x, y, bh, cmap, range, fg) {
 }
 
 /**
- * Heatmap with a colour bar. opts: { width, height, cmap (function t -> rgb), range ({ lo, hi, log }) }.
- * Cell (r, c) covers canvas CSS pixels [c * scale, (c + 1) * scale) x [r * scale, (r + 1) * scale).
+ * Heatmap with a colour bar. opts: { width, height, cmap (function t -> rgb), range ({ lo, hi, log }),
+ * flipY (row 0 at the bottom, north up for latitude rows that grow), lines (overlay in cell units) }.
+ * Cell (r, c) covers canvas CSS pixels [c * scale, (c + 1) * scale) x [r * scale, (r + 1) * scale) (rows counted
+ * from the bottom with flipY).
  */
 export function heatmap(canvas, rows, opts = {}) {
   const nr = rows.length, nc = nr ? rows[0].length : 0;
@@ -141,14 +163,44 @@ export function heatmap(canvas, rows, opts = {}) {
   if (!range) { g.fillStyle = fg; g.fillText('No finite values to plot.', 8, 20); return null; }
   const cmap = opts.cmap || colormap('viridis');
   g.imageSmoothingEnabled = false;
-  g.drawImage(heatImage(rows, nr, nc, cmap, makeScale(range.lo, range.hi, range.log)), 0, 0, w, h);
+  const flipY = !!opts.flipY;
+  g.drawImage(heatImage(flipY ? rows.slice().reverse() : rows, nr, nc, cmap, makeScale(range.lo, range.hi, range.log)), 0, 0, w, h);
+  if (opts.lines) { g.save(); g.beginPath(); g.rect(0, 0, w, h); g.clip(); drawLines(g, opts.lines, 0, 0, scale, nr, flipY); g.restore(); }
   colorbar(g, w + 14, 10, Math.max(h, 120) - 20, cmap, range, fg);
-  return { range, scale, rows: nr, cols: nc, hit(mx, my) { const c = Math.floor(mx / scale), r = Math.floor(my / scale); return r >= 0 && c >= 0 && r < nr && c < nc ? { r, c } : null; } };
+  return { range, scale, rows: nr, cols: nc, flipY, hit(mx, my) {
+    const c = Math.floor(mx / scale), r0 = Math.floor(my / scale), r = flipY ? nr - 1 - r0 : r0;
+    return r0 >= 0 && c >= 0 && r0 < nr && c < nc ? { r, c } : null;
+  } };
+}
+
+/**
+ * RGB(A) picture from 3 or 4 channel slices (rows x cols each, values 0..255; other values are clamped and
+ * missing values are black). Drawn in a box like the heatmap. Returns { scale, rows, cols, hit, pngUrl() }.
+ */
+export function rgbImage(canvas, chans, opts = {}) {
+  const nr = chans[0].length, nc = nr ? chans[0][0].length : 0;
+  const lay = heatmapLayout(nr, nc, opts.width || 760, opts.height || 340);
+  const { scale, w, h } = lay;
+  const img = new ImageData(Math.max(1, nc), Math.max(1, nr));
+  const d = img.data;
+  const byte = x => (typeof x === 'number' && Number.isFinite(x) ? Math.max(0, Math.min(255, Math.round(x))) : 0);
+  for (let r = 0; r < nr; r++) for (let c = 0; c < nc; c++) {
+    const k = (r * nc + c) * 4;
+    d[k] = byte(chans[0][r][c]); d[k + 1] = byte(chans[1][r][c]); d[k + 2] = byte(chans[2][r][c]);
+    d[k + 3] = chans[3] ? byte(chans[3][r][c]) : 255;
+  }
+  const off = document.createElement('canvas'); off.width = Math.max(1, nc); off.height = Math.max(1, nr);
+  off.getContext('2d').putImageData(img, 0, 0);
+  const g = setup(canvas, w, Math.max(h, 1));
+  g.imageSmoothingEnabled = false;
+  g.drawImage(off, 0, 0, w, h);
+  return { scale, rows: nr, cols: nc, pngUrl: () => off.toDataURL('image/png'),
+    hit(mx, my) { const c = Math.floor(mx / scale), r = Math.floor(my / scale); return r >= 0 && c >= 0 && r < nr && c < nc ? { r, c } : null; } };
 }
 
 /**
  * PNG data URL of a heatmap at 2x: title line, the image, row and column axis labels, and the colour bar.
- * opts: { title, cmap, range, rowLabel, colLabel, rowTick(i) -> text, colTick(i) -> text, units }
+ * opts: { title, cmap, range, rowLabel, colLabel, rowTick(i) -> text, colTick(i) -> text, units, flipY, lines }
  */
 export function heatmapPng(rows, opts) {
   const nr = rows.length, nc = nr ? rows[0].length : 0;
@@ -159,7 +211,9 @@ export function heatmapPng(rows, opts) {
   const { c, g } = pngCanvas(W, H, opts.title || '');
   g.imageSmoothingEnabled = false;
   const range = opts.range;
-  g.drawImage(heatImage(rows, nr, nc, opts.cmap, makeScale(range.lo, range.hi, range.log)), L, T, w, h);
+  const flipY = !!opts.flipY;
+  g.drawImage(heatImage(flipY ? rows.slice().reverse() : rows, nr, nc, opts.cmap, makeScale(range.lo, range.hi, range.log)), L, T, w, h);
+  if (opts.lines) { g.save(); g.beginPath(); g.rect(L, T, w, h); g.clip(); drawLines(g, opts.lines, L, T, scale, nr, flipY, 1.2); g.restore(); }
   g.strokeStyle = PNG_COLORS.fg; g.lineWidth = 1; g.strokeRect(L - 0.5, T - 0.5, w + 1, h + 1);
   g.fillStyle = PNG_COLORS.fg;
   const marks = n => { const k = Math.min(5, n); return k <= 1 ? [0] : Array.from({ length: k }, (_, j) => Math.round(j * (n - 1) / (k - 1))); };
@@ -167,7 +221,7 @@ export function heatmapPng(rows, opts) {
   for (const i of marks(nc)) { const x = L + (i + 0.5) * scale; g.fillRect(Math.round(x), T + h, 1, 4); g.fillText(clip(opts.colTick ? opts.colTick(i) : i, 18), x, T + h + 16); }
   if (opts.colLabel) g.fillText(clip(opts.colLabel, 60), L + w / 2, T + h + 34);
   g.textAlign = 'right';
-  for (const i of marks(nr)) { const y = T + (i + 0.5) * scale; g.fillRect(L - 4, Math.round(y), 4, 1); g.fillText(clip(opts.rowTick ? opts.rowTick(i) : i, 12), L - 6, y + 4); }
+  for (const i of marks(nr)) { const y = T + (i + 0.5) * scale, k = flipY ? nr - 1 - i : i; g.fillRect(L - 4, Math.round(y), 4, 1); g.fillText(clip(opts.rowTick ? opts.rowTick(k) : k, 12), L - 6, y + 4); }
   if (opts.rowLabel) { g.save(); g.translate(12, T + h / 2); g.rotate(-Math.PI / 2); g.textAlign = 'center'; g.fillText(clip(opts.rowLabel, 40), 0, 0); g.restore(); }
   const bh = Math.max(h, 160) - 10;
   colorbar(g, L + w + 16, T, bh, opts.cmap, range, PNG_COLORS.fg);

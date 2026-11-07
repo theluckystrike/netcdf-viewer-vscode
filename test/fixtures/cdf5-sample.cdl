@@ -1,0 +1,42 @@
+// Made with: ncgen -k nc4 -o t.nc cdf5-sample.cdl && nccopy -k cdf5 t.nc cdf5-sample.nc
+// (ncgen -k cdf5 writes int64 variables as int, so go through NetCDF-4.)
+netcdf cdf5_sample {
+dimensions:
+  time = UNLIMITED ;
+  y = 3 ;
+  x = 4 ;
+  nchar = 6 ;
+variables:
+  double time(time) ;
+    time:units = "hours since 2026-01-01 00:00:00" ;
+    time:calendar = "standard" ;
+  ubyte mask(y, x) ;
+    mask:long_name = "land mask" ;
+  int64 count(time, y, x) ;
+    count:long_name = "event count" ;
+    count:units = "1" ;
+  uint ids(x) ;
+  ushort level(y) ;
+  short temp(time, y, x) ;
+    temp:scale_factor = 0.01 ;
+    temp:add_offset = 273.15 ;
+    temp:_FillValue = -32767s ;
+    temp:units = "K" ;
+  char station(x, nchar) ;
+  uint64 big(x) ;
+// global attributes:
+  :title = "CDF-5 sample with 64-bit and unsigned types" ;
+  :Conventions = "CF-1.8" ;
+  :int64_attr = 9007199254740993LL ;
+data:
+  time = 0, 6 ;
+  mask = 0, 1, 1, 0, 1, 1, 1, 1, 0, 0, 1, 255 ;
+  count = 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+          5000000000LL, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, -23 ;
+  ids = 1, 2, 4000000000, 4 ;
+  level = 1000, 850, 65535 ;
+  temp = 0, 100, 200, 300, 400, 500, 600, 700, 800, 900, 1000, _,
+         -100, -200, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ;
+  station = "ALPHA", "BRAVO", "C", "DELTA6" ;
+  big = 1, 2, 18446744073709551615, 4 ;
+}

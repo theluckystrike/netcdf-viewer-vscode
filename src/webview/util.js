@@ -219,3 +219,29 @@ export function ticks(lo, hi, n = 5) {
 export function readMessage(reqId, path, view, decode, purpose) {
   return { type: 'read', reqId, path, view, decode: !!decode, purpose };
 }
+
+/**
+ * RGB(A) image datasets: 8-bit arrays shaped (height, width, 3 or 4), or 2D/3D HDF5 datasets marked CLASS=IMAGE
+ * with 3 or 4 channels last. Returns the channel count (3 or 4) or 0 when the dataset is not an RGB image.
+ */
+export function rgbChannels(info) {
+  if (!info || !info.numeric || info.compound || !Array.isArray(info.shape) || info.shape.length !== 3) return 0;
+  const k = info.shape[2];
+  if (k !== 3 && k !== 4) return 0;
+  if (info.shape[0] < 2 || info.shape[1] < 2) return 0;
+  const cls = (info.attrs || []).find(a => a.name === 'CLASS');
+  const isImage = cls && String(cls.value).toUpperCase() === 'IMAGE';
+  return /^u?int8$/.test(info.dtype) || (isImage && /^u?int(8|16|32)$/.test(info.dtype)) ? k : 0;
+}
+
+/**
+ * Sampling steps for a heatmap of rows x cols cells drawn at most max x max. The same step on both axes keeps the
+ * picture's shape (a 720 x 1440 global grid stays twice as wide as tall). When one shared step would leave fewer
+ * than 16 cells on an axis (a 10 x 100000 array), each axis gets its own step instead.
+ */
+export function plotSteps(rows, cols, max = 512) {
+  const r = Math.max(1, Math.ceil(rows / max)), c = Math.max(1, Math.ceil(cols / max));
+  const s = Math.max(r, c);
+  if (Math.ceil(rows / s) >= Math.min(16, rows) && Math.ceil(cols / s) >= Math.min(16, cols)) return { rowStep: s, colStep: s };
+  return { rowStep: r, colStep: c };
+}

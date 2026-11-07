@@ -80,6 +80,7 @@ test('HDF5: groups, links, compound, strings, image slices, LZF', async () => {
     assert.equal(pos.values[1][0][0], 1);
     assert.equal(b.read('/notes/labels', { rowAxis: 0, colAxis: -1, rowCount: 3 }).values[2][0], 'scan <b>&</b>');
     assert.equal(b.read('/entry/sample_name', {}).values[0][0], 'silicon wafer #7');
+    // LZF reads through the h5wasm-plugins LZF library since 0.4.0 (see filters.test.mjs for compressible data).
     near(b.read('/entry/scan/stack_lzf', { rowAxis: 1, colAxis: 2, index: [3, 0, 0], rowStart: 5, rowCount: 1, colStart: 7, colCount: 1 }).values[0][0], E.stack_lzf_3_5_7, 1e-6);
     assert.equal(b.info('/entry/scan/stack_lzf').filters[0].name, 'lzf');
     assert.throws(() => b.read('/entry', {}), /Not a dataset/);
