@@ -15,6 +15,7 @@
 - Fixed: an unlimited maximum shape shows as ∞ instead of 18446744073709552000.
 - New name in the Marketplace: NetCDF Viewer & HDF5 Viewer (NC Viewer, H5 Viewer). The extension ID, settings and commands stay the same.
 - More tools by Zovo and the More free viewers list use the current names of the related extensions.
+- The rating question now comes after 3 files that opened without an error on 2 different days, and never after an error. "Later" asks one more time after 7 days, "No thanks" ends it, and it never asks more than 2 times. `hdf5NetcdfExplorer.askForRating: false` turns it off.
 
 ## 0.3.0 (2026-11-07)
 

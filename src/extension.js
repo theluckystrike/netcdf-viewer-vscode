@@ -9,7 +9,7 @@ const { Session } = require('./core/session.mjs');
 const { createRatingPrompt } = require('./rate');
 const { registerSupport, commandUris, showLinks } = require('./support');
 
-let rating = { success() {} };
+let rating = { success() {}, failure() {} };
 
 const VIEW_TYPE = 'hdf5NetcdfExplorer.viewer';
 // Same viewer, offered in "Open With..." for every file: HDF5 files often have their own extensions.
@@ -92,6 +92,7 @@ class Provider {
     const fileName = path.basename(uri.fsPath || uri.path);
     let counted = false; // one success per opened tab, for the rating prompt
     const post = m => {
+      if (m && ((m.type === 'init' && m.error) || (m.type === 'result' && m.ok === false))) rating.failure(); // never ask after an error
       if (!counted && m && m.type === 'init' && !m.error) { counted = true; rating.success(); }
       webview.postMessage(m);
     };
@@ -136,7 +137,7 @@ class Provider {
 }
 
 function activate(context) {
-  rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.hdf5-netcdf-explorer', section: 'hdf5NetcdfExplorer', message: (n) => `HDF5 & NetCDF Explorer has opened ${n} files for you. A rating helps other people find it.` });
+  rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.hdf5-netcdf-explorer', section: 'hdf5NetcdfExplorer', name: 'NetCDF Viewer' });
   registerSupport({ vscode, context, prefix: 'hdf5NetcdfExplorer', selfId: 'zovo.hdf5-netcdf-explorer' });
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, new Provider(context), { supportsMultipleEditorsPerDocument: true, webviewOptions: { retainContextWhenHidden: false } }),
