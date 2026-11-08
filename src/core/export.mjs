@@ -39,10 +39,12 @@ export function csvField(v, fromText = false) {
 const SPECIAL = new Set(['NaN', 'Inf', '-Inf']);
 // Headers and coordinate labels: text from the file gets the same formula guard as text cells.
 const label = x => csvField(x, typeof x === 'string' && !SPECIAL.has(x));
+// Complex values written by the viewer itself as "a + bi" (not text from the file, so no formula guard).
+const COMPLEX = /^-?(\d[\d.eE+-]*|NaN|Inf) [+-] (\d[\d.eE+-]*|NaN|Inf)i$/;
 const cell = (data, r, c) => {
   if (data.times && data.times[r] && data.times[r][c] != null) return { v: data.times[r][c], text: false };
   const v = data.values[r][c];
-  return { v, text: typeof v === 'string' && !SPECIAL.has(v) };
+  return { v, text: typeof v === 'string' && !SPECIAL.has(v) && !(data.complexText && COMPLEX.test(v)) };
 };
 
 /**

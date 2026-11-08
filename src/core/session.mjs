@@ -104,7 +104,7 @@ export class Session {
     const data = nd === 0 ? await this.call('read', { path: r.path, view: { rowAxis: 0, colAxis: -1, index: [] }, decode: r.decode, part })
       : await this.call('read', { path: r.path, view: { ...view, rowStart: 0, rowCount: rows, colStart: 0, colCount: cols, rowStep: 1, colStep: 1 }, decode: r.decode, part });
     // Complex values as a + bi text in CSV (one cell each); JSON keeps [re, im] pairs.
-    if (part === 'complex' && pick.format !== 'json') data.values = data.values.map(row => row.map(v => formatComplex(v, 0)));
+    if (part === 'complex' && pick.format !== 'json') { data.values = data.values.map(row => row.map(v => formatComplex(v, 0))); data.complexText = true; }
     const coord = async (d, start, count) => {
       const c = info.coords && info.coords[d];
       if (!c) return null;

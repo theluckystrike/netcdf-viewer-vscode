@@ -245,3 +245,33 @@ test('SciPy and h5py snippets for MAT-files', () => {
   assert.match(pythonSnippet({ fileName: 'a.mat', path: '/s/inner/tag', lib: 'scipy' }), /m\["s"\]  # this item: \/s\/inner\/tag/);
   assert.match(pythonSnippet({ fileName: 'a.mat', path: '/A', lib: 'h5py', colMajor: true }), /\[\(\)\]\.T  # MATLAB order/);
 });
+
+test('export of a complex slice: a + bi in CSV without the formula guard, [re, im] in JSON, a part as numbers', async () => {
+  const { Session } = await import('../src/core/session.mjs');
+  const { Worker } = await import('node:worker_threads');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'acq1-mat-'));
+  try {
+    const written = {};
+    let target = null;
+    const out = [];
+    const s = new Session({
+      fileName: 'basic-v5.mat', post: m => out.push(m),
+      createWorker: () => new Worker(new URL('../src/worker.mjs', import.meta.url), { workerData: { filePath: M('basic-v5.mat'), opts: {} } }),
+      chooseExportFile: async () => target, writeExport: async (p, t) => { written[p] = t; },
+    });
+    try {
+      target = { path: path.join(dir, 'z.csv'), format: 'csv' };
+      await s.handle({ type: 'export', reqId: 1, path: '/z', view: { rowAxis: 0, colAxis: 1, index: [] } });
+      assert.equal(out.at(-1).ok, true, out.at(-1).error);
+      assert.equal(written[target.path], 'rows \\ columns,0,1,2\n0,1 + 2i,3 - 4i,0 + 1i\n1,-1 - 1i,5 + 0i,0 - 2i\n');
+      target = { path: path.join(dir, 'z.json'), format: 'json' };
+      await s.handle({ type: 'export', reqId: 2, path: '/z', view: { rowAxis: 0, colAxis: 1, index: [] } });
+      assert.deepEqual(JSON.parse(written[target.path]).values[1], [[-1, -1], [5, 0], [0, -2]]);
+      target = { path: path.join(dir, 'zi.csv'), format: 'csv' };
+      await s.handle({ type: 'export', reqId: 3, path: '/z', view: { rowAxis: 0, colAxis: 1, index: [] }, part: 'im' });
+      assert.match(written[target.path], /\n0,2,-4,1\n/);
+    } finally { s.dispose(); }
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
