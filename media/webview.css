@@ -74,3 +74,6 @@ canvas#heatmap-canvas { cursor: crosshair; }
 .serieshead { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; margin-bottom: 6px; }
 .seriestitle { font-weight: 600; }
 button.play { padding: 1px 8px; min-width: 28px; }
+
+/* Long text (a MATLAB char array, a NetCDF string): wrap instead of one very wide cell. */
+table.grid td.long { white-space: pre-wrap; word-break: break-word; min-width: 40ch; max-width: 100ch; }

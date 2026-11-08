@@ -87,7 +87,8 @@ export function linePng(xs, ys, opts = {}) {
 /** Cell size for a heatmap of nr x nc cells in maxW x maxH (the colour bar takes the last 96 px of the width). */
 export function heatmapLayout(nr, nc, maxW = 760, maxH = 340) {
   const CB = 96;
-  const scale = Math.max(0.25, Math.min((maxW - CB) / Math.max(1, nc), maxH / Math.max(1, nr), 8));
+  // Small matrices (a 3 x 4 MATLAB array) get cells up to 40 px, so they are not a dot; big grids are unchanged.
+  const scale = Math.max(0.25, Math.min((maxW - CB) / Math.max(1, nc), maxH / Math.max(1, nr), 40));
   return { scale, w: Math.max(1, Math.round(nc * scale)), h: Math.max(1, Math.round(nr * scale)), CB };
 }
 

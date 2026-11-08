@@ -557,7 +557,7 @@ function matV5Backend(fd, opts) {
 
   function result(path, hs, vals, numeric, part, compound) {
     const st = !numeric ? null : stats(part === 'complex' ? vals.map(magnitude) : vals);
-    return { path, start: hs.start, count: hs.count, step: hs.step, rows: hs.rows, cols: hs.cols, values: toRows(vals.map(jsonSafe), hs), times: null, stats: st, ...(part === 'complex' && numeric ? { statsOf: 'abs' } : {}), decoded: false, compound: compound || null, ...(part ? { part } : {}) };
+    return { path, start: hs.start, count: hs.count, step: hs.step, rows: hs.rows, cols: hs.cols, values: toRows(vals.map(jsonSafe), hs), times: null, stats: st, ...(part && numeric ? { statsOf: part === 'complex' ? 'abs' : part } : {}), decoded: false, compound: compound || null, ...(part ? { part } : {}) };
   }
 
   function guard(n) {

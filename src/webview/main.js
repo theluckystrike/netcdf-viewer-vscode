@@ -439,7 +439,7 @@ async function drawTab(info, body, bar) {
       else for (let c = 0; c < row.length; c++) {
         const val = row[c];
         const txt = r.times && r.times[i][c] ? r.times[i][c] : Array.isArray(val) && info.complex ? formatComplex(val) : fmtNum(val);
-        tr.append(el('td', { class: val === null ? 'fill' : typeof val === 'string' && !r.times ? 'str' : '', title: r.times ? fmtNum(val) : undefined, text: txt }));
+        tr.append(el('td', { class: val === null ? 'fill' : typeof val === 'string' && !r.times ? (val.length > 80 ? 'str long' : 'str') : '', title: r.times ? fmtNum(val) : undefined, text: txt }));
       }
       tb.append(tr);
     }
