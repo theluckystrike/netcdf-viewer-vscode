@@ -28,7 +28,18 @@ const pyStr = s => JSON.stringify(String(s));
 const isIdent = s => /^[A-Za-z_][A-Za-z0-9_]*$/.test(s);
 
 /** Python snippet that loads the same slice the user is looking at. */
-export function pythonSnippet({ fileName, path, lib, shape, dims, hs }) {
+export function pythonSnippet({ fileName, path, lib, shape, dims, hs, colMajor }) {
+  if (lib === 'scipy') {
+    // scipy.io.loadmat keeps MATLAB's order (rows x columns); cells and structs come back as object arrays.
+    const parts = path.split('/').filter(Boolean);
+    const top = parts[0] || '';
+    const sel = parts.length === 1 && hs && shape && shape.length ? `[${(shape || []).map((n, d) => { const s = hs.start[d], c = hs.count[d], st = hs.step[d]; if (c === 1 && n > 1 && hs.single && hs.single[d]) return String(s); const end = s + (c - 1) * st + 1; return s === 0 && end >= n && st === 1 ? ':' : `${s}:${end}${st > 1 ? ':' + st : ''}`; }).join(', ')}]` : '';
+    return `from scipy.io import loadmat\n\nm = loadmat(${pyStr(fileName)})\ndata = m[${pyStr(top)}]${sel}${parts.length > 1 ? `  # this item: ${path}` : ''}\nprint(data.shape, data.dtype)`;
+  }
+  if (lib === 'h5py' && colMajor) {
+    // MATLAB v7.3: HDF5 holds the transpose; .T gives MATLAB's rows x columns.
+    return `import h5py\n\nwith h5py.File(${pyStr(fileName)}, "r") as f:\n    data = f[${pyStr(path)}][()].T  # MATLAB order\n    print(data.shape, data.dtype)`;
+  }
   const idx = (shape || []).map((n, d) => {
     if (!hs) return ':';
     const s = hs.start[d], c = hs.count[d], st = hs.step[d];

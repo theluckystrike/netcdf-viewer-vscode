@@ -19,7 +19,7 @@ const OPEN_FILTERS = ['h5', 'hdf5', 'he5', 'hdf', 'nc', 'nc4', 'netcdf', 'cdf', 
 /** Our default editor for the known extensions (so a file already open is not opened twice), the any-file editor otherwise. */
 function viewTypeFor(uri) {
   const ext = path.extname(uri.fsPath || uri.path).slice(1).toLowerCase();
-  return ext !== 'mat' && OPEN_FILTERS.includes(ext) ? VIEW_TYPE : ANY_VIEW_TYPE;
+  return OPEN_FILTERS.includes(ext) ? VIEW_TYPE : ANY_VIEW_TYPE;
 }
 
 /** The file behind the active tab, whatever editor shows it (text, binary or custom). */
@@ -120,6 +120,8 @@ class Provider {
         vscode.window.showInformationMessage(`Saved ${path.basename(file)}`, 'Open').then(a => { if (a === 'Open') vscode.commands.executeCommand('vscode.open', target); });
       },
       ui: { colormap: s.colormap },
+      // "Open as text" on the error page (a .mat file of another program, a damaged file): VS Code's own editor.
+      openAsText: () => vscode.commands.executeCommand('vscode.openWith', uri, 'default'),
       createWorker: () => new Worker(path.join(this.context.extensionPath, 'dist', 'worker.mjs'), {
         workerData: { filePath: uri.fsPath, opts: { maxReadValues: s.maxReadValues, maxFileSizeMB: s.maxFileSizeMB } },
       }),
@@ -145,7 +147,7 @@ function activate(context) {
     vscode.commands.registerCommand('hdf5NetcdfExplorer.openWith', async uri => {
       const target = uri instanceof vscode.Uri ? uri : activeTabUri();
       if (target) return vscode.commands.executeCommand('vscode.openWith', target, viewTypeFor(target));
-      const pick = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { 'HDF5 / NetCDF': OPEN_FILTERS, 'All files': ['*'] } });
+      const pick = await vscode.window.showOpenDialog({ canSelectMany: false, filters: { 'HDF5 / NetCDF / MATLAB': OPEN_FILTERS, 'All files': ['*'] } });
       if (pick && pick[0]) return vscode.commands.executeCommand('vscode.openWith', pick[0], viewTypeFor(pick[0]));
     }),
     vscode.commands.registerCommand('hdf5NetcdfExplorer.openWalkthrough', () => vscode.commands.executeCommand('workbench.action.openWalkthrough', 'zovo.hdf5-netcdf-explorer#hdf5NetcdfExplorer.start', false)),

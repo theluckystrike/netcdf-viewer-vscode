@@ -1,8 +1,13 @@
-# NetCDF Viewer & HDF5 Viewer (NC Viewer, H5 Viewer)
+# NetCDF Viewer & HDF5 Viewer (NC Viewer, H5 Viewer, MATLAB MAT Viewer)
 
-A NetCDF viewer and HDF5 viewer for climate and lab scientists who keep data in `.nc` or `.h5` files. It shows the variables, their CF metadata, the values and a map inside VS Code. No Python, no NCL, nothing to set up.
+A NetCDF viewer, HDF5 viewer and MATLAB MAT viewer for climate and lab scientists who keep data in `.nc`, `.h5` or `.mat` files. It shows the variables, their metadata, the values and a map inside VS Code. No Python, no MATLAB, no NCL, nothing to set up.
 
-New in 0.4.0: coastlines on latitude-longitude maps, a Play button that steps through time, NetCDF CDF-5 (64-bit data) files, and full plots of grids over 1 million cells, such as a 0.25 degree global field (721 x 1440).
+MATLAB `.mat` files open with a click: v7.3 and the default v7 format (v5 layout, compressed or not), plus v4. You need no MATLAB and no Python. Structs and cells show as a tree, and matrices show as rows x columns, the way MATLAB prints them.
+
+New in 0.5.0:
+
+- MATLAB `.mat` viewer. Every numeric class (double, single, int8 to uint64, logical), char arrays as text, complex arrays, sparse matrices (the non-zeros as a row, column, value table, and the full matrix for any slice), cells, structs, struct arrays and objects. Uncompressed variables are read slice by slice; compressed ones are unpacked up to 256 MB each.
+- Complex numbers. A "Complex" menu shows a + bi, the magnitude, the phase, or the real or imaginary part, in the table, the heatmap, the line plot and the point series. It works for MATLAB complex arrays, h5py `complex64`/`complex128` (HDF5 compound `{r, i}`), NetCDF-4 compound complex types and MATLAB v7.3 `{real, imag}`.
 
 ![NetCDF viewer in VS Code: NOAA OISST daily sea surface temperature for 2023 (a 450 MB NetCDF-4 file, 365 x 720 x 1440) drawn as a map with coastlines on 1 August 2023, and below it the series of the clicked point at 30.6 S, 135.6 W over the whole year](https://raw.githubusercontent.com/theluckystrike/netcdf-viewer-vscode/main/images/vscode-netcdf-map-series.png)
 
@@ -21,7 +26,7 @@ New in 0.4.0: coastlines on latitude-longitude maps, a Play button that steps th
 - Plots you can use in a report. Choose from 8 colour maps (viridis, cividis, magma, inferno, plasma, turbo, gray and a diverging blue-red map), reverse them, set the range (2-98 percentile, min to max, symmetric around 0, from the `valid_range` or `actual_range` attribute, or your own numbers) and turn on a log scale. "Save PNG" writes the plot with its title, units, the slider positions and the colour bar.
 - Click a point, get its time series. On a variable with 3 or more dimensions, a click on the heatmap plots that grid point along time (or another dimension you pick), with dates on the x axis, like ncview does. Save it as PNG or copy it as CSV.
 - Remote SSH, WSL and dev containers: VS Code runs this extension on the machine that has the file, so a 40 GB file stays where it is and only the slice on screen is sent to your window.
-- One viewer for HDF5, NetCDF-4 and NetCDF-3 (classic, 64-bit offset and CDF-5), including HDF5 files with other names such as Julia `.jld2`, MATLAB 7.3 `.mat` and `.loom`. Groups, attributes, compound tables, strings, chunking and compression filters are all shown. Nothing leaves your machine.
+- One viewer for HDF5, NetCDF-4, NetCDF-3 (classic, 64-bit offset and CDF-5) and MATLAB `.mat` (v4, v5, v7 and v7.3), including HDF5 files with other names such as Julia `.jld2` and `.loom`. Groups, attributes, compound tables, strings, chunking and compression filters are all shown. Nothing leaves your machine.
 
 ## Quick start
 
@@ -48,7 +53,7 @@ New in 0.4.0: coastlines on latitude-longitude maps, a Play button that steps th
 - Click a heatmap cell to plot the values at that point along time or another dimension. Escape closes the series.
 - Save a heatmap, line plot or series as PNG with "Save PNG". The picture has a title with the variable, units and the slider positions, axis labels and the colour bar.
 - See min, max, mean, std and the number of fill, NaN and Inf values for the slice on screen.
-- Copy the path, or copy xarray or h5py code that loads the same slice.
+- Copy the path, or copy xarray, h5py or SciPy (`loadmat`) code that loads the same data.
 - Export the slice on screen to CSV or JSON with "Export slice…". You get every row and column of the two chosen dimensions, with the coordinate values as headers. The sliders fix the other dimensions, and the JSON file records which index and value each of them had. Text from the file that starts with `=`, `+`, `-` or `@` gets a leading `'` in the CSV, so a spreadsheet does not run it as a formula.
 - Turn CF decoding off to see the raw stored numbers.
 - The view reloads when the file changes on disk, which helps while a model run is writing output. A script that deletes the file and writes it again also triggers a reload.
@@ -65,11 +70,14 @@ New in 0.4.0: coastlines on latitude-longitude maps, a Play button that steps th
 | HDF5 (`.h5`, `.hdf5`, `.he5`, `.hdf`, `.nxs`, `.h5ad`) | h5wasm |
 | Compressed HDF5: deflate (gzip), shuffle, szip, fletcher32, n-bit, scale-offset, and the plugin filters LZF, Blosc, Blosc2, bitshuffle, LZ4, Zstd, bzip2 and ZFP (what h5py and hdf5plugin write) | h5wasm with the h5wasm-plugins libraries |
 | HDF5-based formats (`.jld2`, `.loom`, `.h5mu`, `.hf5`, `.h5oina`, `.h5ebsd`, `.edaxh5`, `.oh5`, `.dream3d`, `.geoh5`, `.nde`, `.cxi`) | h5wasm, the same way as `.h5` |
-| MATLAB 7.3 (`.mat`), or an HDF5 file with any other name | h5wasm. Right-click the file and pick "Open in HDF5 NetCDF Explorer", or use "Reopen Editor With…" |
+| MATLAB v7 and v6 (`.mat`, the v5 layout that MATLAB writes by default), compressed or not, either byte order | Our own reader in plain JavaScript. Uncompressed values are read by byte offset; a compressed variable is unpacked when you open it, up to 256 MB |
+| MATLAB v4 (`.mat`) | Our own reader, values read by byte offset |
+| MATLAB 7.3 (`.mat`) | h5wasm, shown in MATLAB's rows x columns order, with char arrays as text |
+| An HDF5 file with any other name | h5wasm. Right-click the file and pick "Open in HDF5 NetCDF Explorer", or use "Reopen Editor With…" |
 | NetCDF-3 classic and 64-bit offset (`.nc`, `.cdf`) | netcdfjs parses the header, values are read by byte offset |
 | NetCDF CDF-5, 64-bit data (`.nc` from PnetCDF, WRF, E3SM or `nccopy -k cdf5`), with the unsigned and 64-bit integer types | Our own header parser, values are read by byte offset |
 
-The format is detected from the first bytes of the file, not from the extension, so a 512-byte user block (JLD2 and MATLAB 7.3 files have one) is fine. HDF4, NASA CDF and older MATLAB v5 `.mat` files get a clear message instead of an error. So does an HDF5 or NetCDF-4 file that was cut off during a copy or download: the message says how many bytes are missing.
+The format is detected from the first bytes of the file, not from the extension, so a 512-byte user block (JLD2 and MATLAB 7.3 files have one) is fine. HDF4 and NASA CDF files get a clear message instead of an error. A `.mat` file from another program (some tools use the same extension for text) gets a message and an "Open as text" button. So does an HDF5 or NetCDF-4 file that was cut off during a copy or download: the message says how many bytes are missing.
 
 ## Settings
 
@@ -90,7 +98,8 @@ The extension makes no network calls and has no telemetry. It never runs code fr
 - Files must be on a disk that the extension can read: your computer, or the remote machine in a Remote SSH, WSL or dev container window. Virtual file systems, such as GitHub repositories opened in vscode.dev, are not supported.
 - Other HDF5 filters (SZ, JPEG and rarer plugins) are named in the dataset details, and reading such a dataset shows a message instead of values.
 - Zarr is not supported yet.
-- MATLAB `.mat` files saved in the v5 format are not HDF5. Save them again with `save(filename, '-v7.3')`.
+- MATLAB function handles and objects of the newer class system (`string`, `table`, `datetime`, `containers.Map`) are listed with their name and class, but their contents are not decoded. A compressed `.mat` variable bigger than 256 MB unpacked is refused; save it with `-v7.3` to read it slice by slice.
+- MATLAB v7.3 cell arrays show as HDF5 references, as they are stored.
 - Export writes at most `hdf5NetcdfExplorer.maxReadValues` values (1,000,000 by default) per file.
 - The colour maps other than viridis are blended from 2 to 15 anchor colours, so they are close to the matplotlib maps but not identical.
 - Coastlines are drawn on regular or near-regular latitude-longitude grids (1D coordinates). Curvilinear grids with 2D latitude and longitude arrays (many ocean models) and projected grids in metres get no coastlines yet.

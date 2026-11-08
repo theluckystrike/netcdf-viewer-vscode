@@ -33,8 +33,8 @@ parentPort.on('message', async msg => {
     const b = opened.backend;
     if (msg.op === 'list') return reply(true, b.list(msg.path));
     if (msg.op === 'info') return reply(true, b.info(msg.path));
-    if (msg.op === 'read') return reply(true, b.read(msg.path, msg.view, msg.decode));
-    if (msg.op === 'series') return reply(true, readSeries(b, msg.path, msg.axis, msg.index || [], msg.decode !== false, { maxReadValues: (workerData.opts || {}).maxReadValues }));
+    if (msg.op === 'read') return reply(true, b.read(msg.path, msg.view, msg.decode, msg.part));
+    if (msg.op === 'series') return reply(true, readSeries(b, msg.path, msg.axis, msg.index || [], msg.decode !== false, { maxReadValues: (workerData.opts || {}).maxReadValues, part: msg.part }));
     if (msg.op === 'close') { b.close(); return reply(true, null); }
     reply(false, 'unknown op');
   } catch (e) {

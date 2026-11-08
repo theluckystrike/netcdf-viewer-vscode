@@ -7,6 +7,9 @@ export const MAX_PNG_DATA_URL = 40 * 1024 * 1024;
 export const PNG_PREFIX = 'data:image/png;base64,';
 // Copy as CSV of a series (up to 100,000 points) needs more than a code snippet does.
 export const MAX_COPY_TEXT = 4_000_000;
+// Which part of a complex value to show: a + bi (tables), magnitude, phase, real or imaginary part.
+const PARTS = ['complex', 'abs', 'arg', 're', 'im'];
+const partOf = (p, dflt) => { if (p === undefined) return dflt; if (!PARTS.includes(p)) throw new Error('bad part'); return p; };
 const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 /** Base64 PNG data URL -> Buffer of the PNG bytes, or throws with a reason. Used by the host before it writes the file. */
@@ -36,6 +39,7 @@ export function validateRequest(msg, limits = DEFAULT_LIMITS) {
     if (!msg || typeof msg !== 'object') throw new Error('not an object');
     switch (msg.type) {
       case 'ready': return { ok: true, req: { type: 'ready' } };
+      case 'openAsText': return { ok: true, req: { type: 'openAsText' } };
       case 'copy':
         if (typeof msg.text !== 'string' || msg.text.length > MAX_COPY_TEXT) throw new Error('bad text');
         return { ok: true, req: { type: 'copy', text: msg.text } };
@@ -68,7 +72,8 @@ export function validateRequest(msg, limits = DEFAULT_LIMITS) {
         if (nValues > limits.maxReadValues) {
           return { ok: false, error: `This read asks for ${nValues} values. The limit is ${limits.maxReadValues} (setting hdf5NetcdfExplorer.maxReadValues).` };
         }
-        return { ok: true, req: { type: 'read', reqId, path: msg.path, view, decode: msg.decode !== false, purpose: msg.purpose === 'plot' ? 'plot' : 'table' } };
+        const purpose = msg.purpose === 'plot' ? 'plot' : 'table';
+        return { ok: true, req: { type: 'read', reqId, path: msg.path, view, decode: msg.decode !== false, purpose, ...(msg.part !== undefined ? { part: partOf(msg.part) } : {}) } };
       }
       case 'export': {
         // Export the whole slice that is on screen. Only the axes and the fixed indices come from the webview;
@@ -81,7 +86,7 @@ export function validateRequest(msg, limits = DEFAULT_LIMITS) {
         if (index.length > limits.maxDims || !index.every(x => Number.isInteger(x) && x >= 0 && x <= Number.MAX_SAFE_INTEGER)) throw new Error('bad index');
         const view = { rowAxis: int(v.rowAxis, 0, limits.maxDims - 1, 0), colAxis: int(v.colAxis, -1, limits.maxDims - 1, -1), index };
         if (view.colAxis === view.rowAxis) throw new Error('bad axes');
-        return { ok: true, req: { type: 'export', reqId, path: msg.path, view, decode: msg.decode !== false } };
+        return { ok: true, req: { type: 'export', reqId, path: msg.path, view, decode: msg.decode !== false, ...(msg.part !== undefined ? { part: partOf(msg.part) } : {}) } };
       }
       case 'savePng': {
         // The webview drew the picture; the host checks it is a PNG and asks where to save it.
@@ -105,7 +110,7 @@ export function validateRequest(msg, limits = DEFAULT_LIMITS) {
         if (axis === undefined) throw new Error('missing axis');
         const index = Array.isArray(msg.index) ? msg.index : [];
         if (index.length > limits.maxDims || !index.every(x => Number.isInteger(x) && x >= 0 && x <= Number.MAX_SAFE_INTEGER)) throw new Error('bad index');
-        return { ok: true, req: { type: 'series', reqId, path: msg.path, axis, index, decode: msg.decode !== false } };
+        return { ok: true, req: { type: 'series', reqId, path: msg.path, axis, index, decode: msg.decode !== false, ...(msg.part !== undefined ? { part: partOf(msg.part) } : {}) } };
       }
       default: throw new Error('unknown type');
     }

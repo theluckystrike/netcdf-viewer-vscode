@@ -1,8 +1,8 @@
 {
   "name": "hdf5-netcdf-explorer",
-  "displayName": "NetCDF Viewer & HDF5 Viewer (NC Viewer, H5 Viewer)",
-  "description": "NetCDF viewer and HDF5 viewer for .nc, .h5 and .hdf5 files. Browse groups and CF metadata, page through values, plot maps with coastlines, play through time, click a point for its time series and save plots as PNG. Offline, no Python.",
-  "version": "0.4.0",
+  "displayName": "NetCDF Viewer & HDF5 Viewer (NC Viewer, H5 Viewer, MATLAB MAT Viewer)",
+  "description": "NetCDF viewer, HDF5 viewer and MATLAB MAT viewer for .nc, .h5, .hdf5 and .mat files (v4, v5, v7 and v7.3). Browse groups, structs and cells, page through values, plot maps with coastlines, plot complex data as magnitude or phase, and save plots as PNG. Offline, no MATLAB, no Python.",
+  "version": "0.5.0",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -44,6 +44,8 @@
     "xarray",
     "h5py",
     "matlab",
+    "mat",
+    "mat file",
     "climate",
     "weather",
     "earth science",
@@ -51,12 +53,10 @@
     "ncdump",
     "cdf5",
     "heatmap",
-    "colormap",
     "time series",
     "plot",
     "coastlines",
     "data science",
-    "map",
     "offline"
   ],
   "main": "./dist/extension.js",
@@ -102,6 +102,9 @@
           },
           {
             "filenamePattern": "*.h5ad"
+          },
+          {
+            "filenamePattern": "*.mat"
           },
           {
             "filenamePattern": "*.jld2"

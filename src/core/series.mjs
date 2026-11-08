@@ -21,7 +21,9 @@ export function readSeries(backend, path, axis, index, decode = true, opts = {})
   const step = seriesStep(len, max);
   const count = Math.ceil(len / step);
   const idx = shape.map((n, d) => Math.min(Math.max(0, n - 1), Number.isInteger(index[d]) ? index[d] : 0));
-  const r = backend.read(path, { rowAxis: axis, colAxis: -1, index: idx, rowStart: 0, rowCount: count, rowStep: step }, decode);
+  // Complex values: the chosen part (magnitude unless the user picked phase, real or imaginary).
+  const part = info.complex ? (opts.part && opts.part !== 'complex' ? opts.part : 'abs') : undefined;
+  const r = backend.read(path, { rowAxis: axis, colAxis: -1, index: idx, rowStart: 0, rowCount: count, rowStep: step }, decode, part);
   const indices = Array.from({ length: r.rows }, (_, i) => i * step);
   const coordAt = (d, start, n, st) => {
     const c = info.coords && info.coords[d];
@@ -44,7 +46,7 @@ export function readSeries(backend, path, axis, index, decode = true, opts = {})
     path, name: info.name, units: (info.cf && info.cf.units) || null, dim: info.dims[axis], axis, len,
     start: 0, step, count: r.rows, indices,
     values: r.values.map(v => v[0]), times: r.times ? r.times.map(v => v[0]) : null,
-    coord: coordAt(axis, 0, r.rows, step), fixed, decoded: !!r.decoded,
+    coord: coordAt(axis, 0, r.rows, step), fixed, decoded: !!r.decoded, ...(part ? { part } : {}),
   };
 }
 

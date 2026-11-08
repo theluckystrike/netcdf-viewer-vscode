@@ -1,8 +1,20 @@
 // Detects the file format from its first bytes. Never trusts the file extension alone.
 const HDF5_SIG = [0x89, 0x48, 0x44, 0x46, 0x0d, 0x0a, 0x1a, 0x0a];
 
-const MAT = 'MATLAB 5.0 MAT-file';
-const isMatV5 = head => head && head.length >= MAT.length && MAT.split('').every((ch, i) => head[i] === ch.charCodeAt(0));
+const startsWith = (head, text) => head && head.length >= text.length && text.split('').every((ch, i) => head[i] === ch.charCodeAt(0));
+/**
+ * MATLAB Level 5 MAT-file (saved with -v6 or -v7, MATLAB's default): "MATLAB 5.0 MAT-file" text, or any text with
+ * version 0x0100 and the "IM"/"MI" byte order mark at bytes 124 to 127 (some writers put other text first).
+ */
+export function isMatV5(head) {
+  if (!head || head.length < 128) return false;
+  const e = String.fromCharCode(head[126], head[127]);
+  if (e !== 'IM' && e !== 'MI') return false;
+  const ver = e === 'IM' ? head[124] | (head[125] << 8) : (head[124] << 8) | head[125];
+  if (ver !== 0x0100) return false;
+  // Level 4 files have no text header; the first bytes of a Level 5 header are printable text.
+  return startsWith(head, 'MATLAB') || head.subarray(0, 4).every(b => b >= 0x20 && b < 0x7f);
+}
 
 /**
  * End-of-file address from an HDF5 superblock at offset 0 (versions 0-3), or null if it cannot be read.
@@ -39,10 +51,14 @@ export function detectFormat(head, sigAt, fileSize) {
   if (sigAt) for (let off = 512; off <= 1 << 30; off *= 2) {
     const b = sigAt(off);
     if (!b) break;
-    if (isH5(b)) return { format: 'hdf5', label: 'HDF5 (user block)' };
+    // MATLAB's HDF5-based MAT-files: "MATLAB 7.3 MAT-file" text (older ones say 7.0) and version 0x0200 in the user block.
+    const matH5 = startsWith(head, 'MATLAB 7.3 MAT-file') || (startsWith(head, 'MATLAB') && head.length >= 128 && ((head[124] === 0 && head[125] === 2) || (head[124] === 2 && head[125] === 0)));
+    if (isH5(b)) return matH5 ? { format: 'hdf5', label: 'MATLAB MAT-file v7.3 (HDF5)', matlab: true } : { format: 'hdf5', label: 'HDF5 (user block)' };
   }
-  if (isMatV5(head)) return { format: 'unsupported', label: 'MATLAB v5 MAT-file', reason: 'This is a MATLAB MAT-file in the older v5 format, which is not HDF5. In MATLAB, save it again with save(filename, \'-v7.3\') and open that file here.' };
+  if (isMatV5(head)) return { format: 'matv5', label: 'MATLAB MAT-file v5' };
+  if (startsWith(head, 'MATLAB 5.0 MAT-file')) return { format: 'unsupported', label: 'MATLAB v5 (truncated)', reason: 'This file starts like a MATLAB MAT-file, but its 128-byte header is cut short. The file is probably truncated.' };
+  if (startsWith(head, 'MATLAB 7.3 MAT-file')) return { format: 'unsupported', label: 'MATLAB v7.3 (damaged)', reason: 'This file starts like a MATLAB v7.3 MAT-file, but the HDF5 data that should follow the header is not there. The file is probably truncated or damaged.' };
   if (head.length >= 4 && head[0] === 0xcd && head[1] === 0xf3 && head[2] === 0x00 && head[3] === 0x01) return { format: 'unsupported', label: 'NASA CDF', reason: 'This is a NASA CDF file, not NetCDF. It is not supported.' };
   if (head.length >= 4 && head[0] === 0x0e && head[1] === 0x03 && head[2] === 0x13 && head[3] === 0x01) return { format: 'unsupported', label: 'HDF4', reason: 'This is an HDF4 file. Only HDF5 and NetCDF are supported.' };
-  return { format: 'unknown', label: 'unknown', reason: 'This file is not HDF5 or NetCDF (no known signature in the first bytes).' };
+  return { format: 'unknown', label: 'unknown', reason: 'This file is not HDF5 or NetCDF, and not a MATLAB MAT-file (no known signature in the first bytes).' };
 }

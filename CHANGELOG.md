@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.0 (2026-11-08)
+
+- MATLAB `.mat` files open with a click, with no MATLAB and no Python. v7 and v6 files (the v5 layout that MATLAB saves by default), compressed or not and in either byte order, are read by a new reader in plain JavaScript. v7.3 files go to the HDF5 reader as before, and v4 files open too. Until now a v5 file only got a message asking to save it again with `-v7.3`, and a v7.3 file needed a right-click.
+- Every MATLAB class: double, single, int8 to uint64 (values above 2^53 show as exact text), logical, char (as text, also UTF-8 and UTF-16), complex, sparse, cell, struct, struct arrays and objects. Cells and structs are groups in the tree, named like MATLAB indexes them: `c/{2}`, `s/inner/level`, `sa/(2)/x`. A sparse matrix shows its non-zeros as a row, column, value table (1-based) and as a full matrix, filled in only for the slice on screen.
+- MATLAB arrays show in MATLAB's order: an m x n matrix has m rows and n columns, and a 3-D array opens on its first page. v7.3 files are turned around the same way, and their char arrays show as text.
+- Safety for `.mat` files: uncompressed values are read by byte offset, a compressed variable is unpacked only when opened and only up to 256 MB, so a small file built to unpack to gigabytes is refused. Truncated files show the variables before the cut and say where it is. Wrong sizes, unknown tags and cells nested more than 64 levels give a message for that variable only.
+- Complex numbers: a "Complex" menu picks a + bi, the magnitude, the phase (radians), or the real or imaginary part. It applies to the table, heatmap, line plot, point series and export. It covers MATLAB complex arrays and the HDF5 compound types `{r, i}` (h5py `complex64` and `complex128`, NetCDF-4 complex), `{re, im}` and `{real, imag}` (MATLAB v7.3). Before, these showed only as a two-column table.
+- "Copy SciPy code" on MATLAB files gives the `scipy.io.loadmat` lines for the variable.
+- An error page now has an "Open as text" button, for example for a `.mat` file that another program wrote.
+- New name in the Marketplace: NetCDF Viewer & HDF5 Viewer (NC Viewer, H5 Viewer, MATLAB MAT Viewer). The extension ID, settings and commands stay the same.
+
 ## 0.4.0 (2026-11-08)
 
 - Coastlines on maps. When a heatmap's rows and columns are latitude and longitude (found from CF units, standard names or the usual names), the Natural Earth 1:110m coastlines are drawn over it, and the saved PNG has them too. Grids from 0 to 360 and from -180 to 180 work, and north is at the top when latitude grows with the row number. A "Coastlines" checkbox turns them off.

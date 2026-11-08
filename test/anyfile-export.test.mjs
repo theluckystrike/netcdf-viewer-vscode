@@ -18,18 +18,19 @@ const F = p => fileURLToPath(new URL('./fixtures/' + p, import.meta.url));
 const root = fileURLToPath(new URL('..', import.meta.url));
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'h5x-test-'));
 
-test('MATLAB v5 MAT-file gets a clear notice; MATLAB 7.3 and JLD2 open as HDF5 behind their user block', () => {
+test('MATLAB v5 MAT-file opens with the MAT reader (0.5.0); MATLAB 7.3 and JLD2 open as HDF5 behind their user block', () => {
   const v5 = Buffer.from('MATLAB 5.0 MAT-file, Platform: MACI64, Created on: Fri Nov  6 2026');
   const d = detectFormat(v5);
-  assert.equal(d.format, 'unsupported');
-  assert.match(d.reason, /-v7\.3/);
-  assert.equal(sniff(F('matrix-v73.mat')).label, 'HDF5 (user block)');
+  assert.equal(d.format, 'unsupported'); // a 66-byte file: the 128-byte header is cut short
+  assert.match(d.reason, /truncated/);
+  assert.equal(sniff(F('matrix-v73.mat')).label, 'MATLAB MAT-file v7.3 (HDF5)');
   assert.equal(sniff(F('model.jld2')).label, 'HDF5 (user block)');
   const dir = tmp();
   try {
     const p = path.join(dir, 'old.mat');
-    fs.writeFileSync(p, Buffer.concat([v5, Buffer.alloc(200)]));
-    assert.equal(sniff(p).label, 'MATLAB v5 MAT-file');
+    const hdr = Buffer.alloc(128, 0x20); v5.copy(hdr); hdr[124] = 0; hdr[125] = 1; hdr.write('IM', 126, 'latin1');
+    fs.writeFileSync(p, hdr);
+    assert.equal(sniff(p).format, 'matv5');
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -51,7 +52,7 @@ test('manifest: new default extensions, an Open With editor for every file, and 
   const [main, any] = pkg.contributes.customEditors;
   const pats = main.selector.map(s => s.filenamePattern);
   for (const e of ['jld2', 'loom', 'h5mu', 'hf5', 'h5oina', 'h5ebsd', 'edaxh5', 'oh5', 'dream3d', 'geoh5', 'nde', 'cxi']) assert.ok(pats.includes('*.' + e), e);
-  assert.ok(!pats.includes('*.mat'), 'MAT files stay opt-in: v5 files are not HDF5');
+  assert.ok(pats.includes('*.mat'), 'MAT files open on a click since 0.5.0 (v4, v5, v7 and v7.3)');
   assert.equal(any.viewType, 'hdf5NetcdfExplorer.anyFile');
   assert.equal(any.priority, 'option');
   assert.deepEqual(any.selector, [{ filenamePattern: '*' }]);
@@ -249,7 +250,7 @@ test('bundled extension: Open With for any file, the palette command on the acti
     await commands['hdf5NetcdfExplorer.openWith'](Uri.file('/data/x.JLD2'));
     assert.equal(opened[1][2], 'hdf5NetcdfExplorer.viewer');
     await commands['hdf5NetcdfExplorer.openWith'](Uri.file('/data/x.mat'));
-    assert.equal(opened[2][2], 'hdf5NetcdfExplorer.anyFile');
+    assert.equal(opened[2][2], 'hdf5NetcdfExplorer.viewer');
 
     // A JLD2 file copied under an unknown name opens in the any-file editor.
     const odd = path.join(dir, 'model.output');

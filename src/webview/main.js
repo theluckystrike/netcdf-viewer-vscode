@@ -4,6 +4,7 @@ import { linePlot, heatmap, heatmapPng, linePng, rgbImage } from './plot.js';
 import { seriesCsv } from '../core/export.mjs';
 import { seriesTitle } from '../core/series.mjs';
 import { geoKind, coastlineCells } from './map.js';
+import { PART_LABELS, formatComplex } from '../core/complex.mjs';
 
 const vscode = acquireVsCodeApi();
 const app = document.getElementById('app');
@@ -32,7 +33,7 @@ function el(tag, attrs, ...kids) {
   return e;
 }
 
-const state = { init: null, selected: null, info: null, view: null, tab: 'table', decode: true, coordCache: new Map(), tree: new Map(), filter: '', plot: null, seriesAt: null, seriesAxis: null, closeSeries: null };
+const state = { init: null, selected: null, info: null, view: null, tab: 'table', decode: true, part: 'complex', coordCache: new Map(), tree: new Map(), filter: '', plot: null, seriesAt: null, seriesAxis: null, closeSeries: null };
 
 // Plot choices (colour map, reverse, range mode, custom ranges per variable, log) live in the webview state,
 // so they come back when this file's tab is shown again. The colour map starts from the setting.
@@ -76,7 +77,8 @@ function render() {
   app.replaceChildren();
   const i = state.init;
   if (i.error) {
-    app.append(el('div', { class: 'fatal' }, el('h2', { text: 'Cannot open ' + i.fileName }), el('p', { text: i.error })));
+    app.append(el('div', { class: 'fatal' }, el('h2', { text: 'Cannot open ' + i.fileName }), el('p', { text: i.error }),
+      el('p', null, el('button', { class: 'secondary', id: 'open-as-text', onclick: () => vscode.postMessage({ type: 'openAsText' }) }, 'Open as text'))));
     return;
   }
   const search = el('input', { type: 'search', placeholder: 'Filter variables', 'aria-label': 'Filter variables', oninput: e => { state.filter = e.target.value.toLowerCase(); drawTree(); } });
@@ -113,7 +115,7 @@ function drawTree() {
       li.style.paddingLeft = (8 + depth * 14) + 'px';
       if (it.kind === 'group') {
         const sub = state.tree.get(it.path);
-        li.append(el('span', { class: 'twisty', text: sub && sub.open ? '▾' : '▸' }), el('span', { text: it.name }), el('span', { class: 'muted', text: ` ${it.children}` }));
+        li.append(el('span', { class: 'twisty', text: sub && sub.open ? '▾' : '▸' }), el('span', { text: it.name }), el('span', { class: 'muted', text: ` ${it.matlab || it.children}` }));
         li.addEventListener('click', async () => {
           const s = state.tree.get(it.path);
           if (s) s.open = !s.open; else await loadGroup(it.path);
@@ -125,7 +127,7 @@ function drawTree() {
       }
       if (!match) continue;
       const icon = it.kind === 'dataset' ? (it.isCoord ? '⌖' : '▦') : it.kind === 'dimension' ? '↔' : it.kind === 'external' ? '↗' : '•';
-      li.append(el('span', { class: 'icon', text: icon }), el('span', { text: it.name }), el('span', { class: 'muted', text: ' ' + (it.kind === 'dataset' ? `${it.dtype} ${shapeText(it.shape, null)}` : it.kind === 'external' ? it.target : it.kind) }));
+      li.append(el('span', { class: 'icon', text: icon }), el('span', { text: it.name }), el('span', { class: 'muted', text: ' ' + (it.kind === 'dataset' ? `${it.dtype} ${shapeText(it.shape, null)}` : it.kind === 'external' || (it.kind === 'other' && it.target) ? it.target : it.kind === 'error' ? 'cannot read' : it.kind) }));
       li.addEventListener('click', () => select(it.path));
       li.addEventListener('keydown', e => { if (e.key === 'Enter') select(it.path); });
       ul.append(li);
@@ -172,7 +174,9 @@ async function select(path) {
     // Show the last two dims (lat x lon for most climate data) and fix the others at 0. Dimensions of length 1
     // are skipped: a buoy or station series stored as (time, lat=1, lon=1) shows as a line along time.
     const long = info.shape.map((n, d) => d).filter(d => info.shape[d] > 1);
-    if (long.length >= 2) { state.view.rowAxis = long[long.length - 2]; state.view.colAxis = long[long.length - 1]; }
+    // MATLAB arrays: rows x columns of the first page, the way MATLAB shows A(:, :, k).
+    if (long.length >= 2 && info.colMajor) { state.view.rowAxis = long[0]; state.view.colAxis = long[1]; }
+    else if (long.length >= 2) { state.view.rowAxis = long[long.length - 2]; state.view.colAxis = long[long.length - 1]; }
     else if (long.length === 1) { state.view.rowAxis = long[0]; state.view.colAxis = -1; }
     else { state.view.rowAxis = nd - 2; state.view.colAxis = nd - 1; }
   }
@@ -187,7 +191,8 @@ function showGroup(info, detail) {
   const kids = el('div');
   detail.replaceChildren(
     el('h2', { text: info.path === '/' ? (state.init.fileName) : info.name }),
-    kv([['Format', info.format], ['Path', info.path], ['Items', info.children]]),
+    kv([['Format', info.format], ['Path', info.path], ['MATLAB', info.matlab], ['Items', info.children]]),
+    info.warning ? el('p', { class: 'err', text: info.warning }) : '',
     info.dimensions ? el('div', null, el('h3', { text: 'Dimensions' }), kv(info.dimensions.map(d => [d.name, d.size + (d.unlimited ? ' (unlimited)' : '')]))) : '',
     el('h3', { text: info.path === '/' ? 'Global attributes' : 'Attributes' }), attrTable(info.attrs, false), kids);
   const items = (n && n.items) || [];
@@ -250,14 +255,14 @@ function showDataset(info, detail) {
   stopPlay();
   const cf = info.cf || {};
   const nd = info.shape.length;
-  const lib = state.init.format === 'netcdf3' || /NetCDF/.test(state.init.label) ? 'xarray' : 'h5py';
+  const lib = /^matv/.test(state.init.format) ? 'scipy' : state.init.format === 'netcdf3' || /NetCDF/.test(state.init.label) ? 'xarray' : 'h5py';
   const copyBtn = (label, fn) => el('button', { class: 'secondary', onclick: () => vscode.postMessage({ type: 'copy', text: fn() }) }, label);
   const coordsText = (info.coords || []).map((c, i) => c ? `${info.dims[i]} → ${c}` : null).filter(Boolean).join(', ');
   const head = el('div', { class: 'dhead' },
     el('h2', null, el('span', { class: 'mono', text: info.name }), cf.long_name ? el('span', { class: 'muted', text: '  ' + cf.long_name }) : null),
     el('div', { class: 'actions' },
       copyBtn('Copy path', () => info.path),
-      copyBtn(lib === 'xarray' ? 'Copy xarray code' : 'Copy h5py code', () => pythonSnippet({ fileName: state.init.fileName, path: info.path, lib, shape: info.shape, dims: info.dims, hs: state.lastHs })),
+      copyBtn(lib === 'xarray' ? 'Copy xarray code' : lib === 'scipy' ? 'Copy SciPy code' : 'Copy h5py code', () => pythonSnippet({ fileName: state.init.fileName, path: info.path, lib, shape: info.shape, dims: info.dims, hs: state.lastHs, colMajor: info.colMajor })),
       exportButton(info)));
   const meta = kv([
     ['Path', info.path], ['Type', info.dtype], ['Shape', shapeText(info.shape, info.dims)],
@@ -287,7 +292,7 @@ function exportButton(info) {
     const v = state.view || { rowAxis: 0, colAxis: -1, index: [] };
     btn.disabled = true; note.className = 'muted export-note'; note.textContent = 'Exporting…';
     try {
-      const r = await request('export', info.path, { view: { rowAxis: v.rowAxis, colAxis: v.colAxis, index: v.index.slice() }, decode: state.decode });
+      const r = await request('export', info.path, { view: { rowAxis: v.rowAxis, colAxis: v.colAxis, index: v.index.slice() }, decode: state.decode, ...(info.complex ? { part: state.part } : {}) });
       note.textContent = r.cancelled ? '' : `Saved ${exportedName(r.file)} (${r.rows} × ${r.cols} values)`;
     } catch (e) {
       note.className = 'err export-note'; note.textContent = e.message;
@@ -297,8 +302,21 @@ function exportButton(info) {
 }
 const exportedName = f => String(f || '').split(/[\\/]/).pop();
 
+/** Part of a complex value for this tab: a + bi only in the table; plots and series use the magnitude instead. */
+const partFor = (info, purpose) => (!info.complex ? undefined : purpose === 'table' ? state.part : state.part === 'complex' ? 'abs' : state.part);
+
 function buildControls(info, box, redraw) {
   const nd = info.shape.length, v = state.view;
+  if (info.complex) {
+    const sel = el('select', { id: 'complex-part', 'aria-label': 'Complex values' });
+    const cur = partFor(info, state.tab === 'plot' ? 'plot' : 'table');
+    for (const [k, label] of Object.entries(PART_LABELS)) {
+      if (k === 'complex' && state.tab === 'plot') continue;
+      sel.append(el('option', { value: k, selected: cur === k, text: label }));
+    }
+    sel.addEventListener('change', () => { state.part = sel.value; redraw(); });
+    box.append(el('label', { class: 'ctl', title: 'Complex numbers: show a + bi, the magnitude, the phase, or the real or imaginary part' }, 'Complex ', sel));
+  }
   if (info.numeric && (info.cf && info.cf.packing || info.cf && info.cf.time)) {
     const cb = el('input', { type: 'checkbox', id: 'dec', checked: state.decode, onchange: e => { state.decode = e.target.checked; redraw(); } });
     box.append(el('label', { class: 'chk' }, cb, ' Apply CF decoding (scale, offset, fill, time)'));
@@ -377,6 +395,7 @@ function showStats(bar, r, note) {
   const s = r.stats;
   if (!s) { bar.textContent = ''; return; }
   const parts = s.count ? [`min ${fmtNum(s.min)}`, `max ${fmtNum(s.max)}`, `mean ${fmtNum(s.mean)}`, `std ${fmtNum(s.std)}`] : ['no finite values'];
+  if (r.statsOf === 'abs') parts.unshift('of |z|:');
   if (s.fill) parts.push(`fill/missing ${s.fill}`);
   if (s.nan) parts.push(`NaN ${s.nan}`);
   if (s.inf) parts.push(`Inf ${s.inf}`);
@@ -401,7 +420,7 @@ async function drawTab(info, body, bar) {
   try {
     if (state.tab === 'plot') { await drawPlot(info, body, bar, token, t0); return true; }
     const view = { ...v, rowCount: PAGE_ROWS, colCount: v.colAxis >= 0 ? PAGE_COLS : 1 };
-    const r = await request('read', info.path, { view, decode: state.decode, purpose: 'table' });
+    const r = await request('read', info.path, { view, decode: state.decode, purpose: 'table', ...(info.complex ? { part: partFor(info, 'table') } : {}) });
     if (state.drawToken !== token) return;
     state.lastHs = { ...r, single: info.shape.map((_, d) => d !== v.rowAxis && d !== v.colAxis) };
     const rowsTotal = nd ? info.shape[v.rowAxis] : 1, colsTotal = v.colAxis >= 0 ? info.shape[v.colAxis] : 1;
@@ -419,7 +438,7 @@ async function drawTab(info, body, bar) {
       if (info.compound) for (const x of row[0]) tr.append(el('td', { text: fmtNum(x) }));
       else for (let c = 0; c < row.length; c++) {
         const val = row[c];
-        const txt = r.times && r.times[i][c] ? r.times[i][c] : fmtNum(val);
+        const txt = r.times && r.times[i][c] ? r.times[i][c] : Array.isArray(val) && info.complex ? formatComplex(val) : fmtNum(val);
         tr.append(el('td', { class: val === null ? 'fill' : typeof val === 'string' && !r.times ? 'str' : '', title: r.times ? fmtNum(val) : undefined, text: txt }));
       }
       tb.append(tr);
@@ -476,7 +495,7 @@ async function drawPlot(info, body, bar, token, t0) {
   const view = line
     ? { ...v, rowStart: 0, rowCount: rows, rowStep: Math.ceil(rows / LINE_MAX), colAxis: -1 }
     : { ...v, rowStart: 0, colStart: 0, rowCount: rows, colCount: cols, ...plotSteps(rows, cols, PLOT_MAX) };
-  const r = await request('read', info.path, { view, decode: state.decode, purpose: 'plot' });
+  const r = await request('read', info.path, { view, decode: state.decode, purpose: 'plot', ...(info.complex ? { part: partFor(info, 'plot') } : {}) });
   if (state.drawToken !== token) return;
   state.lastHs = { ...r, single: info.shape.map((_, d) => d !== v.rowAxis && d !== v.colAxis) };
   const canvas = el('canvas', { class: 'plot', id: line ? 'line-canvas' : 'heatmap-canvas', role: 'img', 'aria-label': `Plot of ${info.name}` });
@@ -484,7 +503,7 @@ async function drawPlot(info, body, bar, token, t0) {
   const note = el('span', { class: 'muted note', id: 'plot-note', role: 'status' });
   const tools = el('div', { class: 'plotbar', id: 'plot-controls' });
   const width = Math.max(320, Math.min(1000, body.clientWidth - 8));
-  const units = info.cf && info.cf.units;
+  const units = info.complex ? PART_LABELS[partFor(info, 'plot')] : info.cf && info.cf.units;
   const sampled = r.step.some(s => s > 1) ? `sampled every ${r.step.filter(s => s > 1).join('×')}` : 'all values';
   state.closeSeries = null;
   if (line) {
@@ -511,7 +530,7 @@ async function drawPlot(info, body, bar, token, t0) {
     // One read per channel, same rows, columns and sampling as the heatmap.
     const chans = await Promise.all(Array.from({ length: k }, (_, c) => {
       const index = v.index.slice(); index[2] = c;
-      return c === v.index[2] ? Promise.resolve(r) : request('read', info.path, { view: { ...view, index }, decode: false, purpose: 'plot' });
+      return c === v.index[2] ? Promise.resolve(r) : request('read', info.path, { view: { ...view, index }, decode: false, purpose: 'plot', ...(info.complex ? { part: partFor(info, 'plot') } : {}) });
     }));
     if (state.drawToken !== token) return;
     canvas.id = 'rgb-canvas';
@@ -643,7 +662,7 @@ async function showSeries(info, box, width) {
   box.replaceChildren(el('p', { class: 'muted', text: 'Reading series…' }));
   let s;
   try {
-    s = await request('series', info.path, { axis: sa.axis, index, decode: state.decode });
+    s = await request('series', info.path, { axis: sa.axis, index, decode: state.decode, ...(info.complex ? { part: partFor(info, 'plot') } : {}) });
   } catch (e) {
     if (box.token !== myToken) return;
     box.replaceChildren(el('div', { class: 'serieshead' }, el('span', { class: 'err', text: e.message }), el('span', { class: 'grow' }), el('button', { class: 'secondary', id: 'series-close', 'aria-label': 'Close series', title: 'Close (Escape)', onclick: close }, '✕')));

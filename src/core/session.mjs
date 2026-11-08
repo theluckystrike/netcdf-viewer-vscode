@@ -2,14 +2,15 @@
 // enforces a timeout per read, and restarts the worker when a read hangs.
 import { validateRequest, DEFAULT_LIMITS, decodePngDataUrl } from './protocol.mjs';
 import { toCsv, toJson, exportFileName } from './export.mjs';
+import { formatComplex } from './complex.mjs';
 
 export class Session {
   /**
    * chooseExportFile({ defaultName }) -> { path, format: 'csv' | 'json' } or null; writeExport(path, text) -> Promise.
    * choosePngFile({ defaultName }) -> { path } or null; writePng(path, bytes) -> Promise. ui: settings for the webview (colormap).
    */
-  constructor({ createWorker, post, copy, limits = DEFAULT_LIMITS, timeoutMs = 20000, fileName, chooseExportFile, writeExport, choosePngFile, writePng, ui }) {
-    Object.assign(this, { createWorker, post, copy, limits, timeoutMs, fileName, chooseExportFile, writeExport, choosePngFile, writePng, ui });
+  constructor({ createWorker, post, copy, limits = DEFAULT_LIMITS, timeoutMs = 20000, fileName, chooseExportFile, writeExport, choosePngFile, writePng, ui, openAsText }) {
+    Object.assign(this, { createWorker, post, copy, limits, timeoutMs, fileName, chooseExportFile, writeExport, choosePngFile, writePng, ui, openAsText });
     this.seq = 1; this.calls = new Map(); this.worker = null; this.disposed = false; this.opened = null;
   }
 
@@ -65,6 +66,7 @@ export class Session {
     const r = v.req;
     if (r.type === 'ready') { this.post(await this.init()); return; }
     if (r.type === 'copy') { if (this.copy) await this.copy(r.text); return; }
+    if (r.type === 'openAsText') { if (this.openAsText) await this.openAsText(); return; }
     if (r.type === 'savePng') {
       try { this.post({ type: 'result', reqId: r.reqId, ok: true, data: await this.savePng(r) }); } catch (e) { this.post({ type: 'result', reqId: r.reqId, ok: false, error: e.message }); }
       return;
@@ -72,8 +74,8 @@ export class Session {
     try {
       if (!this.worker) await this.spawn();
       if (r.type === 'export') { this.post({ type: 'result', reqId: r.reqId, ok: true, data: await this.exportSlice(r) }); return; }
-      if (r.type === 'series') { this.post({ type: 'result', reqId: r.reqId, ok: true, data: await this.call('series', { path: r.path, axis: r.axis, index: r.index, decode: r.decode }) }); return; }
-      const data = await this.call(r.type, r.type === 'read' ? { path: r.path, view: r.view, decode: r.decode } : { path: r.path });
+      if (r.type === 'series') { this.post({ type: 'result', reqId: r.reqId, ok: true, data: await this.call('series', { path: r.path, axis: r.axis, index: r.index, decode: r.decode, part: r.part }) }); return; }
+      const data = await this.call(r.type, r.type === 'read' ? { path: r.path, view: r.view, decode: r.decode, part: r.part } : { path: r.path });
       this.post({ type: 'result', reqId: r.reqId, ok: true, data });
     } catch (e) {
       this.post({ type: 'result', reqId: r.reqId, ok: false, error: e.message });
@@ -98,8 +100,11 @@ export class Session {
     const view = { rowAxis, colAxis, index };
     const pick = await this.chooseExportFile({ defaultName: exportFileName(info, view, 'csv') });
     if (!pick) return { cancelled: true };
-    const data = nd === 0 ? await this.call('read', { path: r.path, view: { rowAxis: 0, colAxis: -1, index: [] }, decode: r.decode })
-      : await this.call('read', { path: r.path, view: { ...view, rowStart: 0, rowCount: rows, colStart: 0, colCount: cols, rowStep: 1, colStep: 1 }, decode: r.decode });
+    const part = info.complex ? r.part || 'complex' : undefined;
+    const data = nd === 0 ? await this.call('read', { path: r.path, view: { rowAxis: 0, colAxis: -1, index: [] }, decode: r.decode, part })
+      : await this.call('read', { path: r.path, view: { ...view, rowStart: 0, rowCount: rows, colStart: 0, colCount: cols, rowStep: 1, colStep: 1 }, decode: r.decode, part });
+    // Complex values as a + bi text in CSV (one cell each); JSON keeps [re, im] pairs.
+    if (part === 'complex' && pick.format !== 'json') data.values = data.values.map(row => row.map(v => formatComplex(v, 0)));
     const coord = async (d, start, count) => {
       const c = info.coords && info.coords[d];
       if (!c) return null;
