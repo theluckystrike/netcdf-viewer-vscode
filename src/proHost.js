@@ -174,7 +174,7 @@ function registerPro({ vscode, context, settings, prefix = 'hdf5NetcdfExplorer' 
       const total = sel.reduce((p, x) => p * x.count, 1);
       const bytesNc = total * (info.dtype === 'float32' ? 4 : 8);
       const fmtPick = await vscode.window.showQuickPick([
-        { label: 'NetCDF (.nc)', description: `about ${(bytesNc / 1048576).toFixed(1)} MB`, detail: 'NetCDF-3 64-bit offset with the coordinates and attributes. Opens in xarray, CDO, NCO, Panoply and this viewer.', format: 'nc' },
+        { label: 'NetCDF (.nc)', description: `about ${bytesNc < 1048576 ? `${Math.max(1, Math.round(bytesNc / 1024))} KB` : `${(bytesNc / 1048576).toFixed(1)} MB`}`, detail: 'NetCDF-3 64-bit offset with the coordinates and attributes. Opens in xarray, CDO, NCO, Panoply and this viewer.', format: 'nc' },
         { label: 'CSV (.csv)', description: total > CSV_MAX_VALUES ? `too large: ${nf.format(total)} values, CSV stops at ${nf.format(CSV_MAX_VALUES)}` : `${nf.format(total)} rows`, detail: 'One row per point: the coordinates, then the value. Fill values are empty cells.', format: 'csv' },
       ], { title: `Export a subset of ${info.name} (3/3): ${nf.format(total)} values`, placeHolder: 'File format' });
       if (!fmtPick) return;
