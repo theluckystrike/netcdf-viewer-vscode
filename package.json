@@ -2,7 +2,7 @@
   "name": "hdf5-netcdf-explorer",
   "displayName": "NetCDF Viewer & HDF5 Viewer (NC Viewer, H5 Viewer)",
   "description": "NetCDF viewer and HDF5 viewer for .nc, .h5 and .hdf5 files. Browse groups and CF metadata, page through values, plot maps with coastlines, play through time, click a point for its time series and save plots as PNG. Offline, no Python.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",

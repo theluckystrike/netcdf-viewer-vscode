@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 (2026-11-09)
+
+- PayPal is now in the footer links and in the README "Support Zovo" section, next to GitHub Sponsors. Both are optional; the viewer works the same without them.
+- No change to how files open or look.
+
 ## 0.4.0 (2026-11-08)
 
 - Coastlines on maps. When a heatmap's rows and columns are latitude and longitude (found from CF units, standard names or the usual names), the Natural Earth 1:110m coastlines are drawn over it, and the saved PNG has them too. Grids from 0 to 360 and from -180 to 180 work, and north is at the top when latitude grows with the row number. A "Coastlines" checkbox turns them off.
