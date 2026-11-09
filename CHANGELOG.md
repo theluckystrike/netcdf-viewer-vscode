@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.6.0 (2026-11-09)
+
+Everything that was free stays free. New, with the optional Zovo Pro (USD 19 once for every Zovo viewer; each tool has 3 free tries on your computer):
+
+- Compare two files, like nccmp: variables in one file only, changed shapes, types and attributes, and every value of every numeric variable in both files, compared after CF decoding. Max and mean absolute difference, RMSE, values that differ, fill and NaN mismatches and the index of the largest difference. Setting `hdf5NetcdfExplorer.compareTolerance` for an absolute tolerance. The report has a filter and saves as CSV, Markdown or JSON.
+- Export a subset of a variable, like `ncks -d`: a range per dimension by index, by coordinate value or by date, saved as NetCDF (with coordinates, attributes and a history line) or as a tidy CSV.
+- "Compare with…" and "Export subset…" buttons, Command Palette commands and Explorer menu entries. `hdf5NetcdfExplorer.showProFeatures: false` hides them.
+
+Also:
+
+- The rating question comes after 2 files that opened without an error in 2 sessions at least 4 hours apart (was 3 files on 2 calendar days). It still never shows after an error, at most twice in all, and the setting turns it off.
+- "Rate it" and the Rate link in the footer open the review page of the store your editor installs from: the Visual Studio Marketplace in VS Code, Open VSX in Cursor, Windsurf, VSCodium and other editors that use Open VSX.
+- Rate is now the first footer link.
+
 ## 0.4.1 (2026-11-09)
 
 - PayPal is now in the footer links and in the README "Support Zovo" section, next to GitHub Sponsors. Both are optional; the viewer works the same without them.

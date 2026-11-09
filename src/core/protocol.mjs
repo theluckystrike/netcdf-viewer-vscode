@@ -36,6 +36,12 @@ export function validateRequest(msg, limits = DEFAULT_LIMITS) {
     if (!msg || typeof msg !== 'object') throw new Error('not an object');
     switch (msg.type) {
       case 'ready': return { ok: true, req: { type: 'ready' } };
+      case 'pro': {
+        // Zovo Pro tool buttons: compare this file with another, or export a subset of a variable.
+        if (msg.action !== 'compare' && msg.action !== 'subset') throw new Error('bad action');
+        if (msg.path !== undefined && (!isStr(msg.path, limits.maxPathLength) || msg.path[0] !== '/')) throw new Error('bad path');
+        return { ok: true, req: { type: 'pro', action: msg.action, ...(msg.path ? { path: msg.path } : {}) } };
+      }
       case 'copy':
         if (typeof msg.text !== 'string' || msg.text.length > MAX_COPY_TEXT) throw new Error('bad text');
         return { ok: true, req: { type: 'copy', text: msg.text } };

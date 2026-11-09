@@ -5,7 +5,9 @@ const root = require('path').join(__dirname, '..');
 const prod = process.argv.includes('--production');
 const common = { bundle: true, minify: prod, sourcemap: false, legalComments: 'none', logLevel: 'warning', absWorkingDir: root };
 Promise.all([
-  esbuild.build({ ...common, entryPoints: ['src/extension.js'], outfile: 'dist/extension.js', platform: 'node', format: 'cjs', target: 'node18', external: ['vscode'] }),
+  // ZOVO_TEST_PUBKEY: gate builds only. The release build trusts only the live key in src/license.
+  esbuild.build({ ...common, entryPoints: ['src/extension.js'], outfile: 'dist/extension.js', platform: 'node', format: 'cjs', target: 'node18', external: ['vscode'],
+    define: process.env.ZOVO_TEST_PUBKEY ? { __ZOVO_TEST_PUBKEY__: JSON.stringify(process.env.ZOVO_TEST_PUBKEY) } : {} }),
   esbuild.build({ ...common, entryPoints: ['src/worker.mjs'], outfile: 'dist/worker.mjs', platform: 'node', format: 'esm', target: 'node18',
     banner: { js: "import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);" } }),
   esbuild.build({ ...common, entryPoints: ['src/webview/main.js'], outfile: 'dist/webview.js', platform: 'browser', format: 'iife', target: 'chrome110' }),

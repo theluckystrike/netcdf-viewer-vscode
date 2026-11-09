@@ -4,6 +4,7 @@ import { NetCDFReader } from 'netcdfjs';
 import { openFile } from './core/open.mjs';
 import { readSeries } from './core/series.mjs';
 import { installFilterPlugins } from './core/filters.mjs';
+import { toBlock } from './core/blocks.mjs';
 import { fileURLToPath } from 'node:url';
 
 // Compression plugins: dist/plugins next to the bundled worker, or node_modules when the tests run the source.
@@ -34,6 +35,10 @@ parentPort.on('message', async msg => {
     if (msg.op === 'list') return reply(true, b.list(msg.path));
     if (msg.op === 'info') return reply(true, b.info(msg.path));
     if (msg.op === 'read') return reply(true, b.read(msg.path, msg.view, msg.decode));
+    if (msg.op === 'block') { // Pro tools: a read as numbers (Float64Array + fill mask), moved, not copied
+      const r = toBlock(b.read(msg.path, msg.view, msg.decode !== false));
+      return parentPort.postMessage({ id: msg.id, ok: true, data: r }, [r.values.buffer, r.fill.buffer]);
+    }
     if (msg.op === 'series') return reply(true, readSeries(b, msg.path, msg.axis, msg.index || [], msg.decode !== false, { maxReadValues: (workerData.opts || {}).maxReadValues }));
     if (msg.op === 'close') { b.close(); return reply(true, null); }
     reply(false, 'unknown op');

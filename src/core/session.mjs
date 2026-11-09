@@ -8,8 +8,8 @@ export class Session {
    * chooseExportFile({ defaultName }) -> { path, format: 'csv' | 'json' } or null; writeExport(path, text) -> Promise.
    * choosePngFile({ defaultName }) -> { path } or null; writePng(path, bytes) -> Promise. ui: settings for the webview (colormap).
    */
-  constructor({ createWorker, post, copy, limits = DEFAULT_LIMITS, timeoutMs = 20000, fileName, chooseExportFile, writeExport, choosePngFile, writePng, ui }) {
-    Object.assign(this, { createWorker, post, copy, limits, timeoutMs, fileName, chooseExportFile, writeExport, choosePngFile, writePng, ui });
+  constructor({ createWorker, post, copy, limits = DEFAULT_LIMITS, timeoutMs = 20000, fileName, chooseExportFile, writeExport, choosePngFile, writePng, ui, proState, onPro }) {
+    Object.assign(this, { createWorker, post, copy, limits, timeoutMs, fileName, chooseExportFile, writeExport, choosePngFile, writePng, ui, proState, onPro });
     this.seq = 1; this.calls = new Map(); this.worker = null; this.disposed = false; this.opened = null;
   }
 
@@ -49,7 +49,7 @@ export class Session {
   async init() {
     try {
       const o = await (this.opened || this.spawn());
-      return { type: 'init', fileName: this.fileName, format: o.format, label: o.label, size: o.size, ...(this.ui ? { ui: this.ui } : {}) };
+      return { type: 'init', fileName: this.fileName, format: o.format, label: o.label, size: o.size, ...(this.ui ? { ui: this.ui } : {}), ...(this.proState ? { pro: this.proState() } : {}) };
     } catch (e) {
       return { type: 'init', fileName: this.fileName, error: e.message };
     }
@@ -65,6 +65,7 @@ export class Session {
     const r = v.req;
     if (r.type === 'ready') { this.post(await this.init()); return; }
     if (r.type === 'copy') { if (this.copy) await this.copy(r.text); return; }
+    if (r.type === 'pro') { if (this.onPro) await this.onPro(r); return; } // Zovo Pro tool buttons; the host checks license or free tries
     if (r.type === 'savePng') {
       try { this.post({ type: 'result', reqId: r.reqId, ok: true, data: await this.savePng(r) }); } catch (e) { this.post({ type: 'result', reqId: r.reqId, ok: false, error: e.message }); }
       return;

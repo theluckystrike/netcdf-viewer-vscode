@@ -2,6 +2,11 @@
 
 A NetCDF viewer and HDF5 viewer for climate and lab scientists who keep data in `.nc` or `.h5` files. It shows the variables, their CF metadata, the values and a map inside VS Code. No Python, no NCL, nothing to set up.
 
+New in 0.6.0: two optional Pro tools, each with 3 free tries. Everything that was free stays free.
+
+- Compare two files, like nccmp: variables in one file only, changed shapes, types and attributes, and every value of every variable in both files, compared after CF decoding. Per variable: max and mean absolute difference, RMSE, how many values differ (with an optional tolerance), fill and NaN mismatches and where the largest difference is.
+- Export a subset, like `ncks -d` or xarray `.sel`: pick a variable and a range for each dimension, by index (`0:99`, `0:99:2`) or by value (`30..60`, `2023-08-01..2023-08-31`). Save it as a NetCDF file with its coordinates and attributes, or as a tidy CSV with one row per point.
+
 New in 0.4.0: coastlines on latitude-longitude maps, a Play button that steps through time, NetCDF CDF-5 (64-bit data) files, and full plots of grids over 1 million cells, such as a 0.25 degree global field (721 x 1440).
 
 ![NetCDF viewer in VS Code: NOAA OISST daily sea surface temperature for 2023 (a 450 MB NetCDF-4 file, 365 x 720 x 1440) drawn as a map with coastlines on 1 August 2023, and below it the series of the clicked point at 30.6 S, 135.6 W over the whole year](https://raw.githubusercontent.com/theluckystrike/netcdf-viewer-vscode/main/images/vscode-netcdf-map-series.png)
@@ -12,7 +17,7 @@ New in 0.4.0: coastlines on latitude-longitude maps, a Play button that steps th
 
 *Play (▶ next to the time slider) on the same 450 MB file, recorded frame by frame in VS Code.*
 
-![VS Code engine](https://img.shields.io/badge/VS%20Code-%5E1.90-0B2A3C) ![License MIT](https://img.shields.io/badge/license-MIT-0B2A3C) ![Works offline](https://img.shields.io/badge/network-none-0B2A3C)
+![VS Code engine](https://img.shields.io/badge/VS%20Code-%5E1.90-0B2A3C) ![License MIT](https://img.shields.io/badge/license-MIT-0B2A3C) ![Works offline](https://img.shields.io/badge/works-offline-0B2A3C)
 
 - Maps with coastlines. When a heatmap's rows and columns are latitude and longitude, it draws the Natural Earth coastlines and puts north at the top. Grids from 0 to 360 and from -180 to 180 both work, and so do regional grids.
 - Play through time. The ▶ button next to a slider steps through time, or any other dimension, at the speed you pick. The colour range stays fixed while it plays, so you can compare the frames.
@@ -79,11 +84,37 @@ The format is detected from the first bytes of the file, not from the extension,
 | `hdf5NetcdfExplorer.maxFileSizeMB` | 0 | Refuse files above this size, 0 means no limit |
 | `hdf5NetcdfExplorer.readTimeoutSeconds` | 20 | Stop a read that takes longer and restart the reader |
 | `hdf5NetcdfExplorer.colormap` | viridis | Colour map a heatmap starts with: viridis, cividis, magma, inferno, plasma, turbo, gray or coolwarm |
-| `hdf5NetcdfExplorer.askForRating` | true | Ask for a Marketplace rating after 3 files opened without an error on 2 different days. "Later" asks one more time after 7 days, "No thanks" never again. It never asks after an error. Turn it off with `false`. |
+| `hdf5NetcdfExplorer.askForRating` | true | Ask for a rating after 2 files opened without an error in 2 sessions at least 4 hours apart. "Rate it" opens the Marketplace review page in VS Code and the Open VSX one in Cursor, Windsurf and VSCodium. "Later" asks one more time after 7 days, "No thanks" never again. It never asks after an error. Turn it off with `false`. |
+| `hdf5NetcdfExplorer.showProFeatures` | true | Off: hide the Compare with… and Export subset… buttons and the Pro commands, so you see only the free viewer. With a Zovo Pro license they always show |
+| `hdf5NetcdfExplorer.compareTolerance` | 0 | Compare two files (Pro): values that differ by this much or less count as equal, like `nccmp -T`. 0 means exact |
+
+## Free and Zovo Pro
+
+Everything this viewer did before 0.6.0 is free and stays free: every format, the tree, attributes, the table, plots and maps with coastlines, Play, time series, Save PNG and Export slice.
+
+Two tools for professional work are part of Zovo Pro, and each has 3 free tries on your computer:
+
+| Pro tool | What you get |
+|---|---|
+| Compare two files | Like nccmp. Lists variables that are in one file only, and changed shapes, types and attributes (global and per variable). Reads every value of every numeric variable that is in both files with the same shape, after CF decoding, so a packed file and its unpacked copy compare equal. Per variable: max and mean absolute difference, RMSE, how many values differ, fill and NaN mismatches and the index of the largest difference (for example `time=3, latitude=120, longitude=40`). Works across formats: NetCDF-4 against NetCDF-3, HDF5 against HDF5. The setting `hdf5NetcdfExplorer.compareTolerance` sets an absolute tolerance. The report has a filter and saves as CSV, Markdown or JSON. |
+| Export a subset | Like `ncks -d` or xarray `.sel`. Pick a variable, then a range for each dimension: all, an index (`5`, `-1` for the last), indices (`0:99`, `0:99:2`), values of the coordinate (`30..60`) or dates on a time axis (`2023-08-01..2023-08-31`). The box shows what you selected as you type. Save it as NetCDF (NetCDF-3 64-bit offset, with the coordinates, the attributes and a `history` line; xarray, CDO, NCO, Panoply and ncview open it) or as a tidy CSV with one row per point and the coordinates in the first columns. Values are written decoded (scale and offset applied), with NaN as the fill value. |
+
+Start them with the "Compare with…" button at the top of the viewer, the "Export subset…" button next to "Export slice…", the Command Palette, or the Explorer menu (select two files to compare). A notification shows the progress, and Cancel stops a long run without leaving a half-written file.
+
+### Getting Pro
+
+Zovo Pro is USD 19 once, on GitHub Sponsors (the ["$19 one time" tier](https://github.com/sponsors/theluckystrike/sponsorships?tier_id=679878)) or by PayPal, and it unlocks the Pro features in every Zovo VS Code viewer: this one, [Hex Viewer](https://marketplace.visualstudio.com/items?itemName=zovo.zovo-hex-viewer), [DOCX Viewer](https://marketplace.visualstudio.com/items?itemName=zovo.docx-viewer-vscode), [NumPy Viewer](https://marketplace.visualstudio.com/items?itemName=zovo.tensor-viewer) and the ones that get Pro features later. See [what Zovo Pro includes](https://theluckystrike.github.io/zovo-plugin-factory/pro.html).
+
+- "Get Zovo Pro" (in the message after the free tries, or the command "NetCDF Viewer: Get Zovo Pro") opens the Zovo Pro tier on GitHub Sponsors in your browser.
+- Then run "NetCDF Viewer: Unlock Zovo Pro with GitHub Sponsors". VS Code asks you to sign in with GitHub, and the viewer asks GitHub one question: has this account bought the Zovo Pro tier? A monthly sponsorship of USD 10 or more that is still running counts too. The "$15 one time" and "$5 a month" tiers on the same page are for Obsidian plugins and do not include Zovo Pro.
+- No GitHub account? Send USD 19 to [paypal.com/paypalme/najzzz/19](https://www.paypal.com/paypalme/najzzz/19) with "Zovo Pro" in the note, and you get a license key by email within a day.
+- A license key starts with `ZOVO1.`. Paste it with "NetCDF Viewer: Enter Zovo Pro License Key". It is checked on your computer and kept in VS Code's secret storage. "NetCDF Viewer: Remove Zovo Pro from This Editor" removes it.
+
+Nothing about Pro shows up on its own: no popup when a file opens, no counter, no reminder. The two buttons carry a small PRO label, and a Pro tool explains itself only when you click it after its free tries. `hdf5NetcdfExplorer.showProFeatures: false` hides the buttons and commands.
 
 ## Privacy and safety
 
-The extension makes no network calls and has no telemetry. It never runs code from a file. Values go to the view as plain JSON and are drawn as text or canvas pixels, under a strict Content Security Policy with no remote scripts.
+The extension has no telemetry and makes no network calls, except one call to GitHub when you choose "Unlock Zovo Pro with GitHub Sponsors" (a monthly sponsor gets one silent recheck every 30 days). A license key is checked on your computer, and "Get Zovo Pro" opens a page in your browser. The Pro tools only read your files and write only the new file you pick. It never runs code from a file. Values go to the view as plain JSON and are drawn as text or canvas pixels, under a strict Content Security Policy with no remote scripts.
 
 ## Known limits
 

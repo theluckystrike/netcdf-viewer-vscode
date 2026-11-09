@@ -63,7 +63,12 @@ document.addEventListener('keydown', e => {
 window.addEventListener('message', ev => {
   const m = ev.data;
   if (!m || typeof m !== 'object') return;
-  if (m.type === 'init') { state.init = m; loadPlotPrefs(m.ui); render(); return; }
+  if (m.type === 'init') { state.init = m; state.pro = m.pro || null; loadPlotPrefs(m.ui); render(); return; }
+  if (m.type === 'pro') {
+    state.pro = { show: !!m.show, licensed: !!m.licensed, trials: m.trials || {} };
+    for (const b of document.querySelectorAll('.probtn')) b.replaceWith(proButton(b.dataset.action, b.dataset.path || undefined));
+    return;
+  }
   if (m.type === 'reload') { state.coordCache.clear(); state.tree.clear(); render(); return; }
   if (m.type === 'result') {
     const p = pending.get(m.reqId); if (!p) return;
@@ -84,7 +89,7 @@ function render() {
     el('span', { class: 'fname', text: i.fileName }),
     el('span', { class: 'badge', text: i.label }),
     el('span', { class: 'muted', text: fmtBytes(i.size) }),
-    el('span', { class: 'grow' }), search);
+    el('span', { class: 'grow' }), proButton('compare'), search);
   const tree = el('nav', { id: 'tree', 'aria-label': 'File structure' });
   const detail = el('section', { id: 'detail' });
   app.append(header, el('div', { class: 'main' }, tree, detail));
@@ -258,7 +263,8 @@ function showDataset(info, detail) {
     el('div', { class: 'actions' },
       copyBtn('Copy path', () => info.path),
       copyBtn(lib === 'xarray' ? 'Copy xarray code' : 'Copy h5py code', () => pythonSnippet({ fileName: state.init.fileName, path: info.path, lib, shape: info.shape, dims: info.dims, hs: state.lastHs })),
-      exportButton(info)));
+      exportButton(info),
+      info.numeric && !info.compound && nd > 0 ? proButton('subset', info.path) : null));
   const meta = kv([
     ['Path', info.path], ['Type', info.dtype], ['Shape', shapeText(info.shape, info.dims)],
     ['Units', cf.units], ['Standard name', cf.standard_name], ['Calendar', cf.time ? cf.calendar || 'standard' : undefined],
@@ -295,6 +301,21 @@ function exportButton(info) {
   } }, 'Export slice…');
   return el('span', { class: 'export' }, btn, note);
 }
+// Zovo Pro tools: Compare with... (header) and Export subset... (variable). The host checks the license or a free try.
+// Hidden by the setting hdf5NetcdfExplorer.showProFeatures; nothing about Pro shows on its own.
+function proButton(action, path) {
+  const p = state.pro;
+  const ph = el('span', { class: 'probtn', 'data-action': action, 'data-path': path || null });
+  if (!p || !p.show) return ph;
+  const n = (p.trials || {})[action];
+  const tries = p.licensed ? '' : n > 0 ? ` (Zovo Pro: ${n} free ${n === 1 ? 'try' : 'tries'} left)` : ' (Zovo Pro)';
+  const label = action === 'compare' ? 'Compare with…' : 'Export subset…';
+  const title = action === 'compare' ? 'Compare every variable, attribute and value of this file with another file' : 'Save a range of each dimension (by index, value or date) as NetCDF or CSV';
+  const b = el('button', { class: 'secondary probtn', id: 'pro-' + action, 'data-action': action, 'data-path': path || null, title: title + tries,
+    onclick: () => vscode.postMessage({ type: 'pro', action, ...(path ? { path } : {}) }) }, label, p.licensed ? null : el('span', { class: 'probadge', text: 'PRO' }));
+  return b;
+}
+
 const exportedName = f => String(f || '').split(/[\\/]/).pop();
 
 function buildControls(info, box, redraw) {

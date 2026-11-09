@@ -8,8 +8,11 @@ const { buildHtml } = require('./html.js');
 const { Session } = require('./core/session.mjs');
 const { createRatingPrompt } = require('./rate');
 const { registerSupport, commandUris, showLinks } = require('./support');
+const { registerPro } = require('./proHost');
 
 let rating = { success() {}, failure() {} };
+let proHost = null; // Zovo Pro tools (compare, subset export); set in activate()
+const proState = () => (proHost ? proHost.state() : { show: false, licensed: false, trials: {} });
 
 const VIEW_TYPE = 'hdf5NetcdfExplorer.viewer';
 // Same viewer, offered in "Open With..." for every file: HDF5 files often have their own extensions.
@@ -93,7 +96,7 @@ class Provider {
     let counted = false; // one success per opened tab, for the rating prompt
     const post = m => {
       if (m && ((m.type === 'init' && m.error) || (m.type === 'result' && m.ok === false))) rating.failure(); // never ask after an error
-      if (!counted && m && m.type === 'init' && !m.error) { counted = true; rating.success(); }
+      if (!counted && m && m.type === 'init' && !m.error) { counted = true; rating.success(uri); }
       webview.postMessage(m);
     };
     if (uri.scheme !== 'file') {
@@ -120,11 +123,21 @@ class Provider {
         vscode.window.showInformationMessage(`Saved ${path.basename(file)}`, 'Open').then(a => { if (a === 'Open') vscode.commands.executeCommand('vscode.open', target); });
       },
       ui: { colormap: s.colormap },
+      proState,
+      onPro: async r => {
+        if (!proHost) return;
+        if (r.action === 'compare') await proHost.runCompare(uri);
+        else await proHost.runSubset(uri, r.path);
+      },
       createWorker: () => new Worker(path.join(this.context.extensionPath, 'dist', 'worker.mjs'), {
         workerData: { filePath: uri.fsPath, opts: { maxReadValues: s.maxReadValues, maxFileSizeMB: s.maxFileSizeMB } },
       }),
     });
     const subs = [webview.onDidReceiveMessage(m => session.handle(m))];
+    if (proHost) {
+      subs.push(proHost.onDidChange(() => webview.postMessage({ type: 'pro', ...proState() })));
+      subs.push(vscode.workspace.onDidChangeConfiguration(e => { if (e.affectsConfiguration('hdf5NetcdfExplorer.showProFeatures')) webview.postMessage({ type: 'pro', ...proState() }); }));
+    }
     const watcher = vscode.workspace.createFileSystemWatcher(new vscode.RelativePattern(vscode.Uri.file(path.dirname(uri.fsPath)), path.basename(uri.fsPath)));
     let t;
     const later = () => { clearTimeout(t); t = setTimeout(() => session.reload(), 500); };
@@ -139,6 +152,8 @@ class Provider {
 function activate(context) {
   rating = createRatingPrompt({ vscode, context, extensionId: 'zovo.hdf5-netcdf-explorer', section: 'hdf5NetcdfExplorer', name: 'NetCDF Viewer' });
   registerSupport({ vscode, context, prefix: 'hdf5NetcdfExplorer', selfId: 'zovo.hdf5-netcdf-explorer' });
+  // The Pro tools must never stop the free viewer: if they cannot start, the viewer works without them.
+  try { proHost = registerPro({ vscode, context, settings }); } catch (e) { proHost = null; console.error('Zovo Pro tools did not start:', e && e.message); }
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(VIEW_TYPE, new Provider(context), { supportsMultipleEditorsPerDocument: true, webviewOptions: { retainContextWhenHidden: false } }),
     vscode.window.registerCustomEditorProvider(ANY_VIEW_TYPE, new Provider(context), { supportsMultipleEditorsPerDocument: true, webviewOptions: { retainContextWhenHidden: false } }),
