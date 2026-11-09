@@ -22,7 +22,8 @@ const FEATURES = {
   },
 };
 
-const PRICE_LINE = 'Zovo Pro is USD 19 once and unlocks the Pro features in every Zovo viewer. Already bought the "$19 one time" tier on GitHub Sponsors? Choose Unlock with GitHub Sponsors: it asks GitHub one question and sends nothing else.';
+// The shared module adds the "How to buy" steps (GitHub Sponsors, PayPal, team) under this text.
+const PRICE_LINE = 'Zovo Pro is USD 19 once and unlocks the Pro features in every Zovo viewer.';
 const FREE_LINE = 'Everything else in NetCDF Viewer stays free: every format, the tree, attributes, the table, plots and maps with coastlines, Play, time series, Save PNG and Export slice.';
 
 function createPro({ vscode, context, prefix = 'hdf5NetcdfExplorer', productName = 'NetCDF Viewer', license, testKey }) {

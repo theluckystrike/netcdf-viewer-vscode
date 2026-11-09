@@ -204,7 +204,7 @@ test('subset to NetCDF: packed t2m by value and date ranges, decoded, coordinate
     } finally { w.close(); }
     // scipy (if installed) reads the file as a standard NetCDF-3 64-bit offset file.
     let py = null;
-    try { py = execFileSync('python3', ['-I', '-c', 'import sys; from scipy.io import netcdf_file as f; d=f(sys.argv[1],"r",mmap=False); v=d.variables["t2m"]; print(d.version_byte, v.shape, d.variables["latitude"][0], round(float(v[0,0,0]),4))', out], { encoding: 'utf8' }).trim(); } catch { py = null; }
+    try { py = execFileSync('python3', ['-c', 'import sys; from scipy.io import netcdf_file as f; d=f(sys.argv[1],"r",mmap=False); v=d.variables["t2m"]; print(d.version_byte, v.shape, d.variables["latitude"][0], round(float(v[0,0,0]),4))', out], { encoding: 'utf8', cwd: tmp }).trim(); } catch { py = null; }
     if (py) assert.match(py, /^2 \(4, \d+, 5\) [\d.]+ [\d.]+$/);
   } finally { r.close(); }
 });
