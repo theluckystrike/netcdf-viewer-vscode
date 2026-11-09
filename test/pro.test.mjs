@@ -320,6 +320,18 @@ test('bundled extension: Pro commands register, and a subset export and a compar
     assert.equal(panels.length, 1, shown.join(' | '));
     assert.match(panels[0].webview.html, /Every variable and attribute is the same in both files/);
     disposeCb();
+    // VERP1: a subset too big for any format is refused before the format and file pickers, and keeps the free try.
+    answers.input.push('', ''); answers.quick.length = 0; answers.save.length = 0;
+    let onMsg2; const webview2 = { ...webview, postMessage: () => Promise.resolve(true), onDidReceiveMessage: cb => { onMsg2 = cb; return { dispose() {} }; } };
+    let dispose2 = () => {};
+    provider.resolveCustomEditor(provider.openCustomDocument(Uri.file(S('huge-sparse.h5'))), { webview: webview2, onDidDispose: cb => { dispose2 = cb; } });
+    try {
+      await onMsg2({ type: 'ready' });
+      const before = shown.length;
+      await onMsg2({ type: 'pro', action: 'subset', path: '/big' });
+      assert.match(shown.slice(before).join(' | '), /^ERR This subset has 10,000,000,000 values\. Pick a smaller range\.$/);
+      assert.equal(store.get('hdf5NetcdfExplorer.proTrial').subset, 1, 'a refused subset keeps the free try');
+    } finally { dispose2(); }
   } finally { Module._load = orig; }
 });
 

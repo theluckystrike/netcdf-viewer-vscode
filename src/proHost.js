@@ -6,7 +6,7 @@ const path = require('path');
 const { Worker } = require('worker_threads');
 const { Session } = require('./core/session.mjs');
 const { compareFiles } = require('./core/ncompare.mjs');
-const { parseRange, writeSubset, CSV_MAX_VALUES } = require('./core/subset.mjs');
+const { parseRange, writeSubset, CSV_MAX_VALUES, NC_MAX_VALUES } = require('./core/subset.mjs');
 const { walk } = require('./core/blocks.mjs');
 const { createPro } = require('./pro');
 const { describe } = require('./pro/describe');
@@ -172,6 +172,8 @@ function registerPro({ vscode, context, settings, prefix = 'hdf5NetcdfExplorer' 
         sel.push(x);
       }
       const total = sel.reduce((p, x) => p * x.count, 1);
+      // Too big for any format: say so now, before the format and file pickers, and keep the free try.
+      if (total > NC_MAX_VALUES) { vscode.window.showErrorMessage(`This subset has ${nf.format(total)} values. Pick a smaller range.`); return; }
       const bytesNc = total * (info.dtype === 'float32' ? 4 : 8);
       const fmtPick = await vscode.window.showQuickPick([
         { label: 'NetCDF (.nc)', description: `about ${bytesNc < 1048576 ? `${Math.max(1, Math.round(bytesNc / 1024))} KB` : `${(bytesNc / 1048576).toFixed(1)} MB`}`, detail: 'NetCDF-3 64-bit offset with the coordinates and attributes. Opens in xarray, CDO, NCO, Panoply and this viewer.', format: 'nc' },
@@ -185,6 +187,7 @@ function registerPro({ vscode, context, settings, prefix = 'hdf5NetcdfExplorer' 
       });
       if (!target) return;
       if (path.resolve(target.fsPath) === path.resolve(uri.fsPath)) { vscode.window.showErrorMessage('Pick a new file name. The export never overwrites the file it reads.'); return; }
+      if (fmtPick.format === 'csv' && total > CSV_MAX_VALUES) { vscode.window.showErrorMessage(`This subset has ${nf.format(total)} values. CSV export stops at ${nf.format(CSV_MAX_VALUES)}; save it as NetCDF, or pick a smaller range.`); return; }
       await pro.useTrial('subset');
       const res = await withProgress(`Exporting ${info.name} to ${baseName(target)}`, o => writeSubset(r.call, info, sel, coords, { path: target.fsPath, format: fmtPick.format }, { maxValues: s.maxReadValues, sourceName: r.name, ...o }));
       if (res.cancelled) { vscode.window.showInformationMessage('Export cancelled. Nothing was written.'); return; }

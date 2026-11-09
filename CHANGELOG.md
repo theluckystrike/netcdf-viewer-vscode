@@ -7,6 +7,8 @@ Everything that was free stays free. New, with the optional Zovo Pro (USD 19 onc
 - Compare two files, like nccmp: variables in one file only, changed shapes, types and attributes, and every value of every numeric variable in both files, compared after CF decoding. Max and mean absolute difference, RMSE, values that differ, fill and NaN mismatches and the index of the largest difference. Setting `hdf5NetcdfExplorer.compareTolerance` for an absolute tolerance. The report has a filter and saves as CSV, Markdown or JSON.
 - Export a subset of a variable, like `ncks -d`: a range per dimension by index, by coordinate value or by date, saved as NetCDF (with coordinates, attributes and a history line) or as a tidy CSV.
 - "Compare with…" and "Export subset…" buttons, Command Palette commands and Explorer menu entries. `hdf5NetcdfExplorer.showProFeatures: false` hides them.
+- A subset too big to save (more than 4 billion values, or more than 20 million for CSV) is refused before the file dialog, and it does not use a free try.
+- Buying Zovo Pro: the README lists the PayPal steps (USD 19, or USD 59 for a team of 5) and the transaction ID form.
 
 Also:
 
