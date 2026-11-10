@@ -260,9 +260,9 @@ test('3 free tries per tool, then one explanation with the ways to unlock; licen
   for (let i = 0; i < 3; i++) { assert.equal(await p.allowed('subset'), true); await p.useTrial('subset'); }
   assert.equal(await p.allowed('subset'), false);
   assert.equal(p.trialLeft('compare'), 3);
-  assert.match(asked[0], /used the 3 free tries/);
-  assert.match(asked[0], /USD 19 once/);
-  assert.match(asked[0], /Export slice/);
+  // EXEC14: structured panel text; the shared module adds the price, the other tools and "stays free".
+  assert.equal(asked[0].triesUsed, 3);
+  assert.match(asked[0].detail, /^Cuts one variable to the ranges you pick/);
   licensed = true;
   assert.equal(await p.allowed('subset'), true);
   assert.equal(asked.length, 1);

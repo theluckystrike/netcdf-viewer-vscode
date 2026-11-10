@@ -2,7 +2,7 @@
   "name": "hdf5-netcdf-explorer",
   "displayName": "NetCDF Viewer & HDF5 Viewer (NC Viewer, H5 Viewer)",
   "description": "NetCDF viewer and HDF5 viewer for .nc, .h5 and .hdf5 files. Browse groups and CF metadata, page through values, plot maps with coastlines, play through time, click a point for its time series and save plots as PNG. Offline, no Python.",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "publisher": "zovo",
   "license": "MIT",
   "icon": "icon.png",
@@ -188,28 +188,28 @@
       },
       {
         "command": "hdf5NetcdfExplorer.getPro",
-        "title": "Get Zovo Pro (USD 19 once, all Zovo viewers)",
-        "category": "NetCDF Viewer"
+        "title": "Get Zovo Pro (USD 19 once, all 22 Zovo extensions)",
+        "category": "Zovo Pro"
       },
       {
         "command": "hdf5NetcdfExplorer.unlockWithSponsors",
-        "title": "Unlock Zovo Pro with GitHub Sponsors",
-        "category": "NetCDF Viewer"
+        "title": "I already paid: unlock with GitHub Sponsors",
+        "category": "Zovo Pro"
       },
       {
         "command": "hdf5NetcdfExplorer.payWithPayPal",
-        "title": "Pay for Zovo Pro with PayPal (USD 19)",
-        "category": "NetCDF Viewer"
+        "title": "Pay for Zovo Pro with PayPal (USD 19, team of 5 USD 59)",
+        "category": "Zovo Pro"
       },
       {
         "command": "hdf5NetcdfExplorer.enterLicenseKey",
-        "title": "Enter Zovo Pro License Key",
-        "category": "NetCDF Viewer"
+        "title": "Enter Zovo Pro license key",
+        "category": "Zovo Pro"
       },
       {
         "command": "hdf5NetcdfExplorer.removeLicense",
-        "title": "Remove Zovo Pro from This Editor",
-        "category": "NetCDF Viewer"
+        "title": "Remove Zovo Pro from this editor",
+        "category": "Zovo Pro"
       }
     ],
     "menus": {
@@ -366,6 +366,14 @@
             "completionEvents": [
               "onCommand:workbench.action.openSettings"
             ]
+          },
+          {
+            "id": "zovo-related",
+            "title": "Files that often come with HDF5 and NetCDF files",
+            "description": "If your project also has pickle files or tensor files, these free Zovo extensions open them. A link opens the extension page, and you choose there whether to install it.\n[Pickle Viewer](command:extension.open?%5B%22zovo.zovo-pickle-viewer%22%5D)\n[Tensor Viewer](command:extension.open?%5B%22zovo.tensor-viewer%22%5D)",
+            "media": {
+              "markdown": "walkthrough/related.md"
+            }
           }
         ]
       }
@@ -386,6 +394,6 @@
     "esbuild": "^0.28.2"
   },
   "sponsor": {
-    "url": "https://github.com/sponsors/theluckystrike"
+    "url": "https://github.com/sponsors/theluckystrike/sponsorships?tier_id=679878"
   }
 }

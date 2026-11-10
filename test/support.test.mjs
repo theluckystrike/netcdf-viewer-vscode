@@ -13,8 +13,8 @@ const { buildHtml } = require('../src/html.js');
 const P = 'hdf5NetcdfExplorer';
 
 test('support: package.json has the sponsor field, the two commands and the setting', () => {
-  assert.equal(pkg.sponsor.url, 'https://github.com/sponsors/theluckystrike');
-  assert.equal(pkg.sponsor.url, support.sponsorUrl());
+  assert.equal(pkg.sponsor.url, 'https://github.com/sponsors/theluckystrike/sponsorships?tier_id=679878');
+  assert.equal(pkg.sponsor.url, 'https://github.com/sponsors/theluckystrike/sponsorships?tier_id=679878');
   const ids = pkg.contributes.commands.map(c => c.command);
   assert.ok(ids.includes(P + '.supportDeveloper') && ids.includes(P + '.moreViewers'));
   const cfg = Array.isArray(pkg.contributes.configuration) ? pkg.contributes.configuration : [pkg.contributes.configuration];
@@ -28,7 +28,7 @@ test('support: the webview footer shows by default and showSupportLinks=false hi
   const base = { cspSource: 'vscode-webview://x', scriptUri: 'vscode-webview://x/w.js', styleUri: 'vscode-webview://x/s.css', nonce: 'abc123' };
   const on = buildHtml(base);
   assert.match(on, /id="zovo-support"/);
-  assert.match(on, /href="command:hdf5NetcdfExplorer\.supportDeveloper"/);
+  assert.match(on, /href="command:hdf5NetcdfExplorer\.getPro"[^>]*>Zovo Pro, USD 19</); // EXEC16 footer: Zovo Pro replaces Sponsor
   assert.match(on, /<style nonce="abc123">/);
   const off = buildHtml({ ...base, showSupportLinks: false });
   assert.doesNotMatch(off, /zovo-support|command:/);
@@ -55,7 +55,7 @@ test('support: the bundled host reads the setting and allows only the support co
       const webview = { cspSource: 'vscode-webview://t', asWebviewUri: u => 'vscode-webview://t' + u.path, postMessage: () => Promise.resolve(true), onDidReceiveMessage: () => ({ dispose() {} }) };
       provider.resolveCustomEditor(provider.openCustomDocument({ scheme: 'untitled', fsPath: '/x.nc', path: '/x.nc' }), { webview, onDidDispose() {} });
       assert.equal(/id="zovo-support"/.test(webview.html), shown, JSON.stringify(settings));
-      assert.deepEqual(webview.options.enableCommandUris, [P + '.supportDeveloper', P + '.moreViewers', 'workbench.action.openSettings']);
+      assert.deepEqual(webview.options.enableCommandUris, [P + '.supportDeveloper', P + '.moreViewers', 'hdf5NetcdfExplorer.getPro', 'hdf5NetcdfExplorer.payWithPayPal', 'workbench.action.openSettings']);
       assert.ok(commands.has(P + '.supportDeveloper') && commands.has(P + '.moreViewers'));
     } finally { Module._load = orig; }
   }
